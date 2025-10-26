@@ -1,0 +1,22 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="32" height="32" fill="#000000"/>
+  
+  <!-- Stylized D with truck -->
+  <path d="M6 4 L6 28 L20 28 L20 24 L10 24 L10 8 L20 8 L20 4 L6 4 Z" fill="white"/>
+  
+  <!-- Truck outline -->
+  <path d="M8 12 L8 20 L16 20 L16 18 L14 18 L14 14 L16 14 L16 12 L8 12 Z" fill="none" stroke="white" stroke-width="1"/>
+  
+  <!-- Truck wheels -->
+  <circle cx="10" cy="20" r="1.5" fill="white"/>
+  <circle cx="14" cy="20" r="1.5" fill="white"/>
+  
+  <!-- Orange squares -->
+  <rect x="18" y="6" width="4" height="4" fill="#FF6B35"/>
+  <rect x="22" y="10" width="2" height="2" fill="#FF6B35"/>
+  
+  <!-- Green squares -->
+  <rect x="20" y="8" width="2" height="2" fill="#32CD32"/>
+  <rect x="22" y="6" width="2" height="2" fill="#32CD32"/>
+</svg>
