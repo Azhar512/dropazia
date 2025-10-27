@@ -14,7 +14,16 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    // Ensure JWT_SECRET is configured
+    if (!process.env.JWT_SECRET) {
+      console.error('JWT_SECRET not configured in environment variables');
+      return res.status(500).json({
+        success: false,
+        message: 'Server configuration error'
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Get user from database
     const user = await User.findById(decoded.userId).select('name email role status isActive');

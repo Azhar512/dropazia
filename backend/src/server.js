@@ -21,15 +21,34 @@ connectDB();
 app.use(helmet());
 
 // CORS configuration
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? process.env.FRONTEND_URL
+    ? [process.env.FRONTEND_URL]
+    : []
+  : [
+      'http://localhost:3000',
+      'http://localhost:8080',
+      'http://localhost:8081',
+      'http://localhost:8082',
+      'http://localhost:8083',
+      'http://localhost:8084'
+    ];
+
+if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
+  console.warn('⚠️  WARNING: FRONTEND_URL not set in production environment!');
+}
+
 app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    'http://localhost:8080',
-    'http://localhost:8081', 
-    'http://localhost:8082',
-    'http://localhost:8083',
-    'http://localhost:8084'
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
