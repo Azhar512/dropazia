@@ -35,27 +35,27 @@ class Cart {
       const cartItems = await CartItem.find({ user: userId })
         .populate({
           path: 'product',
-          select: 'name price stock module images',
-          populate: {
-            path: 'images',
-            match: { isPrimary: true },
-            select: 'url altText'
-          }
+          select: 'name price stock module images'
         })
         .sort({ createdAt: -1 });
 
       // Transform the data to match frontend expectations
-      return cartItems.map(item => ({
-        id: item._id,
-        product_id: item.product._id,
-        product_name: item.product.name,
-        price: item.product.price,
-        stock: item.product.stock,
-        module: item.product.module,
-        product_image_url: item.product.images[0]?.url || null,
-        quantity: item.quantity,
-        added_at: item.createdAt
-      }));
+      return cartItems.map(item => {
+        const product = item.product || {};
+        const primaryImage = product.images?.find(img => img.isPrimary) || product.images?.[0];
+        
+        return {
+          id: item._id,
+          product_id: product._id,
+          product_name: product.name,
+          price: product.price,
+          stock: product.stock,
+          module: product.module,
+          product_image_url: primaryImage?.url || null,
+          quantity: item.quantity,
+          added_at: item.createdAt
+        };
+      });
     } catch (error) {
       console.error('Error getting cart:', error);
       throw error;

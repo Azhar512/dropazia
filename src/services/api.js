@@ -99,6 +99,92 @@ class ApiService {
   static async getProductsByModule(module) {
     return this.request(`/api/products/module/${module}`);
   }
+
+  // Orders API
+  static async getOrders() {
+    return this.request('/api/orders/customer/orders');
+  }
+
+  static async getOrderById(orderId) {
+    return this.request(`/api/orders/${orderId}`);
+  }
+
+  static async getOrderStats() {
+    return this.request('/api/orders/customer/stats');
+  }
+
+  static async createOrder(orderData) {
+    return this.request('/api/orders', {
+      method: 'POST',
+      body: JSON.stringify(orderData),
+    });
+  }
+
+  // Analytics API
+  static async getAnalytics(module) {
+    return this.request(`/api/analytics/${module}`);
+  }
+
+  // Profits API
+  static async getProfits(module) {
+    return this.request(`/api/profits/${module}`);
+  }
+
+  // Wishlist API
+  static async addToWishlist(productId, module) {
+    return this.request('/api/wishlist/add', {
+      method: 'POST',
+      body: JSON.stringify({ productId, module }),
+    });
+  }
+
+  static async removeFromWishlist(productId) {
+    return this.request(`/api/wishlist/remove/${productId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  static async getWishlist(module = null) {
+    const queryString = module ? `?module=${module}` : '';
+    return this.request(`/api/wishlist${queryString}`);
+  }
+
+  static async isInWishlist(productId) {
+    return this.request(`/api/wishlist/check/${productId}`);
+  }
+
+  static async getWishlistCount(module = null) {
+    const queryString = module ? `?module=${module}` : '';
+    return this.request(`/api/wishlist/count${queryString}`);
+  }
+
+  // Returns API
+  static async createReturn(returnData) {
+    return this.request('/api/returns', {
+      method: 'POST',
+      body: JSON.stringify(returnData),
+    });
+  }
+
+  static async getMyReturns(module = null) {
+    const queryString = module ? `?module=${module}` : '';
+    return this.request(`/api/returns/my${queryString}`);
+  }
+
+  static async getAllReturns() {
+    return this.request('/api/returns/all');
+  }
+
+  static async getReturnsByUser(userId) {
+    return this.request(`/api/returns/user/${userId}`);
+  }
+
+  static async updateReturnStatus(returnId, status, adminNotes = '') {
+    return this.request(`/api/returns/${returnId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, adminNotes }),
+    });
+  }
 }
 
 export default ApiService;

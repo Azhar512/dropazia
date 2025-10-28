@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 const loginSchema = z.object({
@@ -23,6 +24,7 @@ interface LoginFormProps {
 
 const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, module }) => {
   const { login, loading } = useAuth();
+  const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
@@ -39,6 +41,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, module }) => {
       setIsSubmitting(true);
       const success = await login(data.email, data.password);
       if (success) {
+        // Redirect to products page for the module they logged in to
+        navigate(`/${module}-products`);
         onSuccess?.();
       } else {
         setError('root', {
@@ -56,13 +60,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, module }) => {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
       {errors.root && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />

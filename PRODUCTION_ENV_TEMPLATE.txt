@@ -1,0 +1,53 @@
+# ==============================================
+# Production Environment Variables Template
+# ==============================================
+# 
+# INSTRUCTIONS:
+# 1. Copy this content to a file named '.env'
+# 2. Place the .env file in your 'backend' folder
+# 3. Replace all 'YOUR_XXX_HERE' values with your actual values
+# 4. Remove any comments (# lines) before deploying
+#
+# ==============================================
+
+# ============ DATABASE ============
+# Get this from MongoDB Atlas
+# Format: mongodb+srv://username:password@cluster.mongodb.net/dbname
+MONGODB_URI=YOUR_MONGODB_ATLAS_CONNECTION_STRING_HERE
+DB_NAME=shopdaraz
+
+# ============ SERVER ============
+PORT=5000
+NODE_ENV=production
+
+# Your domain URL (with https://)
+FRONTEND_URL=https://yourdomain.com
+
+# ============ JWT AUTHENTICATION ============
+# Generate a secure random string (at least 32 characters)
+# Use: https://randomkeygen.com/ (CodeIgniter Encryption Keys)
+JWT_SECRET=YOUR_SECURE_JWT_SECRET_HERE_MIN_32_CHARS
+
+# ============ API URL ============
+# Your backend API endpoint (same as FRONTEND_URL + /api)
+API_URL=https://yourdomain.com/api
+
+# ============ EMAIL (Optional - for notifications) ============
+# Uncomment and configure if you want email features
+# SMTP_HOST=smtp.hostinger.com
+# SMTP_PORT=587
+# SMTP_USER=noreply@yourdomain.com
+# SMTP_PASS=your_email_password
+
+# ============ JAZZCASH (Optional - for payments) ============
+# Uncomment and configure if you have JazzCash credentials
+# JAZZCASH_MERCHANT_ID=YOUR_MERCHANT_ID
+# JAZZCASH_PASSWORD=YOUR_PASSWORD
+# JAZZCASH_INTEGRITY_SALT=YOUR_SALT
+
+# ============ FILE UPLOADS (Optional - Cloudinary) ============
+# Uncomment and configure if using Cloudinary for image storage
+# CLOUDINARY_CLOUD_NAME=your_cloud_name
+# CLOUDINARY_API_KEY=your_api_key
+# CLOUDINARY_API_SECRET=your_api_secret
+

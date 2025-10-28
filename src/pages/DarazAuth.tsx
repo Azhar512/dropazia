@@ -31,6 +31,12 @@ const DarazAuth = () => {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2">Daraz Module</h1>
           <p className="text-muted-foreground">Sign in or create your account</p>
+          <Alert className="mt-4 border-primary/20 bg-primary/5">
+            <Info className="h-4 w-4 text-primary" />
+            <AlertDescription className="text-sm">
+              Please log in to view Daraz products and start shopping
+            </AlertDescription>
+          </Alert>
         </div>
 
         <Tabs defaultValue="login" className="w-full">

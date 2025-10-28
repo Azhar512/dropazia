@@ -181,10 +181,14 @@ class OrderService {
   }
 
   // Get order statistics
-  static async getStats(customerId) {
+  static async getStats(customerId, module = null) {
     try {
+      const matchCondition = module 
+        ? { customer: mongoose.Types.ObjectId(customerId), module }
+        : { customer: mongoose.Types.ObjectId(customerId) };
+
       const stats = await Order.aggregate([
-        { $match: { customer: mongoose.Types.ObjectId(customerId) } },
+        { $match: matchCondition },
         {
           $group: {
             _id: null,

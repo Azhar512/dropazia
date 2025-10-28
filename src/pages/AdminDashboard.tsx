@@ -445,13 +445,14 @@ const AdminDashboard = () => {
                       <TableHead>Role</TableHead>
                       <TableHead>Module</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Returns</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredApprovedUsers.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                           No users found
                         </TableCell>
                       </TableRow>
@@ -473,6 +474,9 @@ const AdminDashboard = () => {
                           <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
                             {user.status}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">0</Badge>
                         </TableCell>
                           <TableCell>
                             <Button size="sm" variant="outline">

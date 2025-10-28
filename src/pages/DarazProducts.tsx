@@ -5,26 +5,44 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Search, Filter, ShoppingCart, Download, Eye, Heart } from 'lucide-react';
+import { ArrowLeft, Search, Filter, ShoppingCart, Download, Eye, Heart, Copy, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProducts } from '@/contexts/ProductContext';
 import { useCart } from '@/contexts/CartContext';
+import { useWishlist } from '@/contexts/WishlistContext';
 import Cart from '@/components/Cart';
+import UserSidebar from '@/components/UserSidebar';
+import WhatsAppButton from '@/components/WhatsAppButton';
+import { WishlistButton } from '@/components/WishlistButton';
 import { CATEGORIES } from '@/lib/categories';
 import { Product } from '@/types/product';
+import { toast } from 'sonner';
 
 const DarazProducts = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { getProductsByModule } = useProducts();
+  const { getProductsByModule, products } = useProducts();
   const { addToCart } = useCart();
+  const { refreshWishlist } = useWishlist();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Get Daraz products from shared context
   const darazProducts = getProductsByModule('daraz');
+  
+  // Debug log
+  console.log('Daraz products:', darazProducts);
+  console.log('Total products in context:', products.length);
+
+  // Refresh wishlist on mount
+  React.useEffect(() => {
+    if (user) {
+      refreshWishlist('daraz');
+    }
+  }, [user, refreshWishlist]);
 
   // Filter products
   const filteredProducts = darazProducts.filter(product => {
@@ -56,9 +74,23 @@ const DarazProducts = () => {
     link.click();
   };
 
+  // Copy product name
+  const copyProductName = async (productName: string, productId: string) => {
+    try {
+      await navigator.clipboard.writeText(productName);
+      setCopiedId(productId);
+      toast.success("Product name copied to clipboard");
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (error) {
+      toast.error("Could not copy to clipboard");
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100">
+      <UserSidebar module="daraz" />
+      <WhatsAppButton phoneNumber="03274996979" message="Hello! I need help with Daraz products." />
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -135,20 +167,39 @@ const DarazProducts = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredProducts.map((product) => (
             <Card key={product.id} className="group overflow-hidden hover:shadow-lg transition-all duration-300">
-              <div className="aspect-square overflow-hidden">
+              <div className="aspect-square overflow-hidden relative">
                 <img 
                   src={product.images[0]?.url || '/placeholder.svg'} 
                   alt={product.images[0]?.alt || product.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
+                <div className="absolute top-2 right-2">
+                  <WishlistButton productId={product.id} module="daraz" />
+                </div>
               </div>
               
               <div className="p-4">
                 <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-lg line-clamp-2">{product.name}</h3>
-                  <Badge variant="outline" className="ml-2 shrink-0">
-                    {product.category}
-                  </Badge>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-lg line-clamp-2 pr-2">{product.name}</h3>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => copyProductName(product.name, product.id)}
+                      className="h-8 w-8 p-0"
+                    >
+                      {copiedId === product.id ? (
+                        <Check className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                    <Badge variant="outline" className="shrink-0">
+                      {product.category}
+                    </Badge>
+                  </div>
                 </div>
                 
                 <p className="text-sm text-muted-foreground mb-3 line-clamp-2">

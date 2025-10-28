@@ -22,7 +22,9 @@ const Checkout = () => {
   const { products, addOrder } = useProducts();
   
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentStep, setPaymentStep] = useState<'details' | 'payment' | 'processing' | 'success'>('details');
+  const [paymentStep, setPaymentStep] = useState<'details' | 'payment' | 'receipt' | 'processing' | 'success'>('details');
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   
   // Form data
   const [formData, setFormData] = useState({
@@ -37,6 +39,10 @@ const Checkout = () => {
     paymentMethod: 'jazzcash'
   });
 
+  // Detect module from products
+  const detectedModule = cartItems.length > 0 ? 
+    (products.find(p => p.id === cartItems[0].productId)?.module || 'daraz') : 'daraz';
+  
   // Get cart items with product details
   const cartItemsWithDetails = cartItems.map(cartItem => {
     const product = products.find(p => p.id === cartItem.productId);
@@ -46,13 +52,26 @@ const Checkout = () => {
     };
   }).filter(item => item.product !== null);
 
-  // Calculate totals
+  // Calculate subtotal with profit for each module
   const subtotal = cartItemsWithDetails.reduce((total, item) => {
-    return total + (item.product!.price * item.quantity);
+    const productPrice = item.product!.price;
+    const profit = item.product!.profit || 0;
+    // For Shopify, user adds profit; for Daraz, profit is built into price
+    const itemTotal = detectedModule === 'shopify' 
+      ? (productPrice + profit) * item.quantity
+      : productPrice * item.quantity;
+    return total + itemTotal;
   }, 0);
 
-  const shipping = subtotal > 5000 ? 0 : 200;
-  const total = subtotal + shipping;
+  // Delivery charges - only for Daraz (fixed Rs 50), Shopify charges set by admin at delivery
+  const deliveryCharges = detectedModule === 'daraz' ? 50 : 0;
+  
+  // Payment calculation based on module
+  const paymentAmount = detectedModule === 'daraz' 
+    ? subtotal + deliveryCharges  // Daraz: Full payment (100%) + 50 delivery upfront
+    : 0;                           // Shopify: Pay nothing upfront, admin decides delivery charges at delivery
+  
+  const total = subtotal + (detectedModule === 'daraz' ? deliveryCharges : 0); // Total includes delivery only for Daraz
 
   // Redirect if cart is empty
   useEffect(() => {
@@ -75,88 +94,93 @@ const Checkout = () => {
     }));
   };
 
+  const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setReceiptFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setReceiptPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handlePayment = async () => {
     setIsProcessing(true);
     setPaymentStep('processing');
 
     try {
-      // Validate form data
-      const paymentData = {
-        amount: total,
-        currency: 'PKR',
-        orderId: `ORDER-${Date.now()}`,
-        description: `Order for ${cartItemsWithDetails.length} items`,
-        customerName: formData.customerName,
-        customerEmail: formData.customerEmail,
-        customerPhone: formData.customerPhone,
-        customerAddress: `${formData.street}, ${formData.city}, ${formData.state} ${formData.zipCode}, ${formData.country}`
-      };
-
-      const validationErrors = validatePaymentData(paymentData);
-      if (validationErrors.length > 0) {
-        alert('Please fix the following errors:\n' + validationErrors.join('\n'));
+      // Validate payment receipt
+      if (!receiptFile) {
+        alert('Please upload payment receipt before proceeding.');
         setPaymentStep('details');
         setIsProcessing(false);
         return;
       }
 
-      // Initiate JazzCash payment
-      const paymentResponse = await jazzCashService.initiatePayment(paymentData);
+      // Create WhatsApp message with order details
+      const orderDetails = cartItemsWithDetails.map(item => 
+        `- ${item.product!.name} x${item.quantity} = Rs ${item.product!.price * item.quantity}`
+      ).join('\n');
 
-      if (paymentResponse.success && paymentResponse.paymentUrl) {
-        // Create order
-        const order: Order = {
-          id: paymentData.orderId,
-          customerId: user!.id,
-          customerName: paymentData.customerName,
-          customerEmail: paymentData.customerEmail,
-          items: cartItemsWithDetails.map(item => ({
-            productId: item.productId,
-            productName: item.product!.name,
-            productImage: item.product!.images[0]?.url,
-            quantity: item.quantity,
-            price: item.product!.price,
-            totalPrice: item.product!.price * item.quantity
-          })),
-          totalAmount: total,
-          status: 'pending',
-          paymentStatus: 'pending',
-          shippingAddress: {
-            street: formData.street,
-            city: formData.city,
-            state: formData.state,
-            zipCode: formData.zipCode,
-            country: formData.country
-          },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          module: 'daraz' // Default to daraz, could be determined by product modules
-        };
+      const whatsappMessage = `Order Confirmation\n\nCustomer: ${formData.customerName}\nEmail: ${formData.customerEmail}\nPhone: ${formData.customerPhone}\n\nItems:\n${orderDetails}\n\nSubtotal: Rs ${subtotal}\nDelivery Charges: Rs ${deliveryCharges}\nTotal: Rs ${total}\n\nPayment Amount: Rs ${paymentAmount}\n\nAddress: ${formData.street}, ${formData.city}, ${formData.state} ${formData.zipCode}\n\nI have made the payment. Please find attached receipt.`;
 
-        // Add order to context
-        addOrder(order);
+      // Open WhatsApp with pre-filled message
+      const phoneNumber = '03274996979';
+      const cleanPhone = phoneNumber.replace(/\D/g, '');
+      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(whatsappMessage)}`;
+      
+      // Open WhatsApp in new tab
+      window.open(whatsappUrl, '_blank');
 
-        // Clear cart
-        clearCart();
+      // Create order
+      const orderId = `ORDER-${Date.now()}`;
+      const order: Order = {
+        id: orderId,
+        customerId: user!.id,
+        customerName: formData.customerName,
+        customerEmail: formData.customerEmail,
+        items: cartItemsWithDetails.map(item => ({
+          productId: item.productId,
+          productName: item.product!.name,
+          productImage: item.product!.images[0]?.url,
+          quantity: item.quantity,
+          price: item.product!.price,
+          totalPrice: item.product!.price * item.quantity
+        })),
+        totalAmount: total,
+        status: 'pending',
+        paymentStatus: 'pending',
+        shippingAddress: {
+          street: formData.street,
+          city: formData.city,
+          state: formData.state,
+          zipCode: formData.zipCode,
+          country: formData.country
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        module: detectedModule,
+        paymentAmount: paymentAmount,
+        paymentType: detectedModule === 'daraz' ? 'full' : 'delivery_only'
+      };
 
-        // Simulate payment processing
-        setTimeout(() => {
-          setPaymentStep('success');
-          setIsProcessing(false);
-        }, 3000);
+      // Add order to context
+      addOrder(order);
 
-        // In a real implementation, you would redirect to JazzCash payment page
-        // window.location.href = paymentResponse.paymentUrl;
-        
-      } else {
-        alert('Payment initiation failed: ' + (paymentResponse.error || 'Unknown error'));
-        setPaymentStep('details');
+      // Clear cart
+      clearCart();
+
+      // Wait a moment then show success
+      setTimeout(() => {
+        setPaymentStep('success');
         setIsProcessing(false);
-      }
+      }, 2000);
 
     } catch (error) {
       console.error('Payment error:', error);
-      alert('Payment failed. Please try again.');
+      alert('Order processing failed. Please try again.');
       setPaymentStep('details');
       setIsProcessing(false);
     }
@@ -169,9 +193,12 @@ const Checkout = () => {
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
             <CreditCard className="w-8 h-8 text-green-600" />
           </div>
-          <h1 className="text-2xl font-bold mb-2">Payment Successful!</h1>
+          <h1 className="text-2xl font-bold mb-2">Order Placed Successfully!</h1>
           <p className="text-muted-foreground mb-6">
-            Your order has been placed successfully. You will receive a confirmation email shortly.
+            Your receipt has been sent to WhatsApp. Your order is being processed and you will receive a confirmation soon.
+          </p>
+          <p className="text-sm font-semibold text-green-600 mb-6">
+            WhatsApp Number: 03274996979
           </p>
           <div className="space-y-2">
             <Button onClick={() => navigate('/customer-dashboard')} className="w-full">
@@ -329,23 +356,50 @@ const Checkout = () => {
               </div>
               
               <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    id="jazzcash"
-                    name="paymentMethod"
-                    value="jazzcash"
-                    checked={formData.paymentMethod === 'jazzcash'}
-                    onChange={(e) => handleInputChange('paymentMethod', e.target.value)}
-                  />
-                  <Label htmlFor="jazzcash" className="flex items-center gap-2">
-                    <img src="/jazzcash-logo.svg" alt="JazzCash" className="w-6 h-6" />
-                    JazzCash
-                  </Label>
+                {/* EasyPaisa Payment Info */}
+                <div className="p-4 border-2 border-green-500 rounded-lg bg-green-50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-bold">
+                      EP
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-green-700">EasyPaisa Payment</h3>
+                      <p className="text-xs text-green-600">Send payment receipt via WhatsApp</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm">
+                    <p><strong>Account:</strong> 03274996979</p>
+                    <p><strong>Name:</strong> Muhammad Aneeq Ahmad</p>
+                    <p><strong>Method:</strong> EasyPaisa</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2 mb-3">
+                    Please make payment to the account above and upload receipt to complete your order.
+                  </p>
+
+                  {/* Receipt Upload */}
+                  <div className="mt-3">
+                    <Label htmlFor="receipt" className="text-sm font-semibold block mb-2">
+                      Upload Payment Receipt *
+                    </Label>
+                    <Input
+                      id="receipt"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleReceiptUpload}
+                      className="cursor-pointer"
+                    />
+                    {receiptPreview && (
+                      <div className="mt-3">
+                        <p className="text-xs text-green-600 mb-2">Receipt preview:</p>
+                        <img
+                          src={receiptPreview}
+                          alt="Receipt preview"
+                          className="w-full h-40 object-contain border border-green-300 rounded"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  You will be redirected to JazzCash secure payment page
-                </p>
               </div>
             </Card>
           </div>
@@ -388,31 +442,49 @@ const Checkout = () => {
                   <span>Subtotal</span>
                   <span>{formatCurrency(subtotal)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Shipping</span>
-                  <span>
-                    {shipping === 0 ? (
-                      <span className="text-green-600">Free</span>
-                    ) : (
-                      formatCurrency(shipping)
-                    )}
-                  </span>
-                </div>
-                {subtotal < 5000 && (
-                  <p className="text-xs text-muted-foreground">
-                    Add {formatCurrency(5000 - subtotal)} more for free shipping
-                  </p>
+                
+                {detectedModule === 'daraz' && (
+                  <div className="flex justify-between">
+                    <span>Delivery Charges</span>
+                    <span>{formatCurrency(deliveryCharges)}</span>
+                  </div>
                 )}
+                
+                {/* Payment Rule Display */}
+                <div className="mt-3 p-3 rounded-lg bg-muted">
+                  {detectedModule === 'daraz' ? (
+                    <div>
+                      <p className="text-sm font-semibold text-orange-600 mb-1">Daraz Module:</p>
+                      <p className="text-xs text-muted-foreground">Pay 100% in advance + Rs 50 delivery charges</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-sm font-semibold text-purple-600 mb-1">Shopify Module:</p>
+                      <p className="text-xs text-muted-foreground">Pay nothing upfront. Delivery charges decided by admin at delivery time</p>
+                    </div>
+                  )}
+                </div>
+                
                 <Separator />
-                <div className="flex justify-between text-lg font-bold">
-                  <span>Total</span>
-                  <span>{formatCurrency(total)}</span>
+                
+                <div className="flex justify-between">
+                  <span className="font-semibold">Order Total</span>
+                  <span className="font-semibold">{formatCurrency(total)}</span>
+                </div>
+                
+                <div className="flex justify-between text-lg font-bold border-t pt-2 mt-2">
+                  <span className={detectedModule === 'daraz' ? 'text-orange-600' : 'text-purple-600'}>
+                    {detectedModule === 'daraz' ? 'Pay Now (Full Payment + Delivery)' : 'Pay Now (Rs 0 - Free)'}
+                  </span>
+                  <span className={detectedModule === 'daraz' ? 'text-orange-600' : 'text-purple-600'}>
+                    {formatCurrency(paymentAmount)}
+                  </span>
                 </div>
               </div>
 
               <Button
                 onClick={handlePayment}
-                disabled={isProcessing}
+                disabled={isProcessing || !receiptFile}
                 className="w-full mt-6"
                 size="lg"
               >
@@ -424,7 +496,7 @@ const Checkout = () => {
                 ) : (
                   <>
                     <CreditCard className="w-4 h-4 mr-2" />
-                    Pay with JazzCash
+                    {!receiptFile ? 'Upload Receipt First' : 'Complete Order & Send Receipt via WhatsApp'}
                   </>
                 )}
               </Button>

@@ -4,11 +4,24 @@ import { Badge } from "@/components/ui/badge";
 import { ShoppingBag, Package, Settings, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 const Landing = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [keySequence, setKeySequence] = useState<string[]>([]);
   const [showAdminAccess, setShowAdminAccess] = useState(false);
+
+  // Handle module click - require authentication
+  const handleModuleClick = (module: 'daraz' | 'shopify') => {
+    if (!user) {
+      // Redirect to login page for that module
+      navigate(module === 'daraz' ? '/daraz' : '/shopify');
+    } else {
+      // User is logged in, navigate to products
+      navigate(`/${module}-products`);
+    }
+  };
 
   // Secret key sequence: 'admin' (case insensitive)
   const secretSequence = ['a', 'd', 'm', 'i', 'n'];
@@ -65,7 +78,7 @@ const Landing = () => {
             {/* Daraz Module */}
             <Card 
               className="group p-8 card-gradient hover-lift cursor-pointer border-2 hover:border-primary animate-fade-in"
-              onClick={() => navigate('/daraz-products')}
+              onClick={() => handleModuleClick('daraz')}
             >
               <div className="flex flex-col items-center text-center space-y-6">
                 <div className="w-20 h-20 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg" style={{background: 'var(--gradient-daraz)'}}>
@@ -98,7 +111,7 @@ const Landing = () => {
             {/* Shopify Module */}
             <Card 
               className="group p-8 card-gradient hover-lift cursor-pointer border-2 hover:border-secondary animate-fade-in"
-              onClick={() => navigate('/shopify-products')}
+              onClick={() => handleModuleClick('shopify')}
             >
               <div className="flex flex-col items-center text-center space-y-6">
                 <div className="w-20 h-20 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg" style={{background: 'var(--gradient-shopify)'}}>

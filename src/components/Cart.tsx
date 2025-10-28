@@ -21,7 +21,7 @@ const Cart = () => {
 
   // Get cart items with product details
   const cartItemsWithDetails = cartItems.map(cartItem => {
-    const product = products.find(p => p.id === cartItem.productId);
+    const product = products.find(p => p.id === cartItem.product_id);
     return {
       ...cartItem,
       product: product || null
@@ -117,7 +117,7 @@ const Cart = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleQuantityChange(item.productId, item.quantity - 1)}
+                            onClick={() => handleQuantityChange(item.product_id, item.quantity - 1)}
                           >
                             <Minus className="w-3 h-3" />
                           </Button>
@@ -125,20 +125,20 @@ const Cart = () => {
                             type="number"
                             min="1"
                             value={item.quantity}
-                            onChange={(e) => handleQuantityChange(item.productId, parseInt(e.target.value) || 1)}
+                            onChange={(e) => handleQuantityChange(item.product_id, parseInt(e.target.value) || 1)}
                             className="w-16 text-center"
                           />
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleQuantityChange(item.productId, item.quantity + 1)}
+                            onClick={() => handleQuantityChange(item.product_id, item.quantity + 1)}
                           >
                             <Plus className="w-3 h-3" />
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => removeFromCart(item.productId)}
+                            onClick={() => removeFromCart(item.product_id)}
                             className="text-red-600 hover:text-red-700"
                           >
                             <Trash2 className="w-3 h-3" />

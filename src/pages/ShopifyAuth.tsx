@@ -31,6 +31,12 @@ const ShopifyAuth = () => {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2">Shopify Module</h1>
           <p className="text-muted-foreground">Sign in or create your account</p>
+          <Alert className="mt-4 border-secondary/20 bg-secondary/5">
+            <Info className="h-4 w-4 text-secondary" />
+            <AlertDescription className="text-sm">
+              Please log in to view Shopify products and start shopping
+            </AlertDescription>
+          </Alert>
         </div>
 
         <Tabs defaultValue="login" className="w-full">

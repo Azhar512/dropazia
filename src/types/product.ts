@@ -4,6 +4,7 @@ export interface Product {
   description: string;
   category: string;
   price: number;
+  profit?: number; // Optional profit field for Shopify module
   stock: number;
   module: 'daraz' | 'shopify';
   status: 'active' | 'inactive' | 'draft';
@@ -64,6 +65,8 @@ export interface Order {
   customerEmail: string;
   items: OrderItem[];
   totalAmount: number;
+  paymentAmount?: number; // Amount paid now
+  paymentType?: 'full' | 'delivery_only'; // Payment type
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   shippingAddress: {
