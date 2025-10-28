@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: shopdaraz-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        value: mongodb+srv://dropazia:dropazia123@cluster0.9hv504i.mongodb.net/?appName=Cluster0
+      - key: PORT
+        value: 5000
+      - key: JWT_SECRET
+        value: dGhpcyBpcyBhIHNlY3VyZSByYW5kb20gamV5dCBrZXkgZm9yIHByb2R1Y3Rpb24gZGVwbG95bWVudA
+      - key: FRONTEND_URL
+        value: https://yourdomain.com
+
