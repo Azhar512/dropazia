@@ -27,7 +27,7 @@ app.use(helmet());
 // CORS configuration
 const allowedOrigins = process.env.NODE_ENV === 'production'
   ? process.env.FRONTEND_URL
-    ? [process.env.FRONTEND_URL]
+    ? process.env.FRONTEND_URL.split(',').map(url => url.trim()).filter(url => url)
     : []
   : [
       'http://localhost:3000',
