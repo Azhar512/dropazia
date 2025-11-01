@@ -56,7 +56,7 @@ const DarazOrders = () => {
   return (
     <div className={`min-h-screen bg-gradient-to-br ${module === 'shopify' ? 'from-purple-50 to-purple-100' : 'from-orange-50 to-orange-100'}`}>
       <UserSidebar module={module} />
-      <WhatsAppButton phoneNumber="03274996979" message="Hello! I have a question about my orders." />
+      <WhatsAppButton phoneNumber="+923256045679" message="Hello! I have a question about my orders." />
       <div className="container mx-auto px-4 py-8">
         <Button 
           variant="ghost" 

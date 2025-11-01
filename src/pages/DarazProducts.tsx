@@ -90,7 +90,7 @@ const DarazProducts = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100">
       <UserSidebar module="daraz" />
-      <WhatsAppButton phoneNumber="03274996979" message="Hello! I need help with Daraz products." />
+      <WhatsAppButton phoneNumber="+923256045679" message="Hello! I need help with Daraz products." />
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">

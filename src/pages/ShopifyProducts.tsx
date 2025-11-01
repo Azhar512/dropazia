@@ -86,7 +86,7 @@ const ShopifyProducts = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100">
       <UserSidebar module="shopify" />
-      <WhatsAppButton phoneNumber="03274996979" message="Hello! I need help with Shopify products." />
+      <WhatsAppButton phoneNumber="+923256045679" message="Hello! I need help with Shopify products." />
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">

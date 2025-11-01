@@ -127,7 +127,7 @@ const Checkout = () => {
       const whatsappMessage = `Order Confirmation\n\nCustomer: ${formData.customerName}\nEmail: ${formData.customerEmail}\nPhone: ${formData.customerPhone}\n\nItems:\n${orderDetails}\n\nSubtotal: Rs ${subtotal}\nDelivery Charges: Rs ${deliveryCharges}\nTotal: Rs ${total}\n\nPayment Amount: Rs ${paymentAmount}\n\nAddress: ${formData.street}, ${formData.city}, ${formData.state} ${formData.zipCode}\n\nI have made the payment. Please find attached receipt.`;
 
       // Open WhatsApp with pre-filled message
-      const phoneNumber = '03274996979';
+      const phoneNumber = '+923256045679';
       const cleanPhone = phoneNumber.replace(/\D/g, '');
       const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(whatsappMessage)}`;
       
@@ -198,7 +198,7 @@ const Checkout = () => {
             Your receipt has been sent to WhatsApp. Your order is being processed and you will receive a confirmation soon.
           </p>
           <p className="text-sm font-semibold text-green-600 mb-6">
-            WhatsApp Number: 03274996979
+            WhatsApp Number: +923256045679
           </p>
           <div className="space-y-2">
             <Button onClick={() => navigate('/customer-dashboard')} className="w-full">

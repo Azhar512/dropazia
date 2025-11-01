@@ -142,8 +142,11 @@ const UserDashboard = () => {
               </div>
               <div>
                 <h3 className="font-semibold text-orange-800">Account Pending Approval</h3>
-                <p className="text-sm text-orange-600">
-                  Your account is currently under review. You will be notified via WhatsApp once approved.
+                <p className="text-sm text-orange-600 mb-2">
+                  Your account is currently under review. Please wait for admin approval.
+                </p>
+                <p className="text-sm text-orange-700 font-medium">
+                  While you wait, contact admin via WhatsApp: <span className="font-semibold">+923256045679</span>
                 </p>
               </div>
             </div>

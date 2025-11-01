@@ -264,7 +264,7 @@ const DarazReturns = () => {
           )}
         </div>
       </div>
-      <WhatsAppButton phoneNumber="03274996979" />
+      <WhatsAppButton phoneNumber="+923256045679" />
     </div>
   );
 };

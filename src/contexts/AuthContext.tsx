@@ -8,11 +8,23 @@ interface User {
   status: string;
 }
 
+interface RegisterData {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  role: 'buyer' | 'reseller';
+  module: 'daraz' | 'shopify';
+}
+
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
+  register: (data: RegisterData) => Promise<void>;
   logout: () => void;
   loading: boolean;
+  error: string | null;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,6 +32,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const validateToken = async () => {
@@ -96,6 +110,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const register = async (data: RegisterData): Promise<void> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Registration failed');
+      }
+
+      // Registration successful - user needs admin approval
+      // Don't log them in automatically
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Registration failed';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem('authToken');
@@ -106,8 +149,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     <AuthContext.Provider value={{
       user,
       login,
+      register,
       logout,
-      loading
+      loading,
+      error,
+      isLoading
     }}>
       {children}
     </AuthContext.Provider>
