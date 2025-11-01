@@ -86,6 +86,41 @@ const createProduct = async (req, res) => {
       });
     }
 
+    // Validate user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required to create products'
+      });
+    }
+
+    // Convert user ID string to ObjectId
+    const createdByUserId = new mongoose.Types.ObjectId(req.user.id);
+
+    // Map images from frontend format to backend format
+    const mappedImages = (images || []).map((img, index) => ({
+      url: img.url,
+      altText: img.alt || img.altText || '',
+      isPrimary: img.isPrimary !== undefined ? img.isPrimary : index === 0,
+      type: img.type || 'jpg',
+      sortOrder: img.sortOrder || index
+    }));
+
+    // Map documents from frontend format to backend format
+    const mappedDocuments = (documents || []).map((doc) => ({
+      name: doc.name,
+      url: doc.url,
+      type: doc.type,
+      sizeBytes: doc.size || doc.sizeBytes || 0
+    }));
+
+    // Map specifications
+    const mappedSpecifications = (specifications || []).map((spec, index) => ({
+      name: spec.name,
+      value: spec.value,
+      sortOrder: spec.sortOrder || index
+    }));
+
     // Create product
     const product = new Product({
       name,
@@ -98,10 +133,10 @@ const createProduct = async (req, res) => {
       sku,
       weight,
       dimensions,
-      images: images || [],
-      documents: documents || [],
-      specifications: specifications || [],
-      createdBy: req.user?.id || new mongoose.Types.ObjectId() // Use authenticated user or generate new ObjectId
+      images: mappedImages,
+      documents: mappedDocuments,
+      specifications: mappedSpecifications,
+      createdBy: createdByUserId // Use authenticated user's ID
     });
 
     await product.save();
@@ -126,6 +161,14 @@ const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
+
+    // Validate user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required to update products'
+      });
+    }
 
     // Remove fields that shouldn't be updated
     const { createdBy, _id, __v, ...allowedUpdates } = updates;
@@ -162,6 +205,14 @@ const updateProduct = async (req, res) => {
 const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Validate user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required to delete products'
+      });
+    }
 
     const product = await Product.findByIdAndDelete(id);
 
