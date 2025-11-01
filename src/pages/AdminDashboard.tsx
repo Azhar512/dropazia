@@ -186,8 +186,19 @@ const AdminDashboard = () => {
       }
     };
 
-    // Fetch users - run immediately and also when user changes
+    // Fetch users immediately
     fetchUsers();
+    
+    // Set up auto-refresh every 30 seconds to show new registrations in real-time
+    const refreshInterval = setInterval(() => {
+      console.log('🔄 Auto-refreshing users (30s interval)...');
+      fetchUsers();
+    }, 30000); // Refresh every 30 seconds
+    
+    // Cleanup interval on unmount
+    return () => {
+      clearInterval(refreshInterval);
+    };
   }, [toast]);
 
   // Refresh users list (same logic as useEffect)
@@ -789,24 +800,29 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div className="space-y-3">
-                  {[
-                    { action: "New user registration", user: "Ali Haider", time: "2 hours ago", type: "user" },
-                    { action: "Product added", user: "Summer Dress", time: "4 hours ago", type: "product" },
-                    { action: "User approved", user: "Sara Khan", time: "1 day ago", type: "approval" },
-                    { action: "Stock updated", user: "Men's Watch", time: "2 days ago", type: "product" },
-                  ].map((activity, index) => (
-                    <div key={index} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                      <div className={`w-2 h-2 rounded-full ${
-                        activity.type === 'user' ? 'bg-blue-500' :
-                        activity.type === 'product' ? 'bg-green-500' :
-                        'bg-orange-500'
-                      }`} />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{activity.action}</p>
-                        <p className="text-xs text-muted-foreground">{activity.user} • {activity.time}</p>
-                      </div>
+                  {pendingUsers.length === 0 && approvedUsers.length === 0 && !isLoadingUsers ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p>No activity yet</p>
+                      <p className="text-xs mt-2">Activity will appear here as users register and interact with the platform</p>
                     </div>
-                  ))}
+                  ) : (
+                    <>
+                      {pendingUsers.slice(0, 5).map((pendingUser) => (
+                        <div key={pendingUser.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                          <div className="w-2 h-2 rounded-full bg-blue-500" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">New user registration</p>
+                            <p className="text-xs text-muted-foreground">{pendingUser.name} ({pendingUser.email}) • Pending approval</p>
+                          </div>
+                        </div>
+                      ))}
+                      {pendingUsers.length === 0 && (
+                        <div className="text-center py-4 text-muted-foreground text-sm">
+                          No pending users at the moment
+                        </div>
+                      )}
+                    </>
+                  )}
               </div>
               </Card>
             </TabsContent>

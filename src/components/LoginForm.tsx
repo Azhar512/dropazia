@@ -41,7 +41,47 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, module }) => {
       setIsSubmitting(true);
       const success = await login(data.email, data.password);
       if (success) {
-        // Redirect to products page for the module they logged in to
+        // After successful login, check user status
+        // Get user from auth context (login function sets it)
+        const token = localStorage.getItem('authToken');
+        if (token) {
+          try {
+            const profileResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/profile`, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              },
+            });
+            if (profileResponse.ok) {
+              const profileData = await profileResponse.json();
+              if (profileData.success && profileData.data) {
+                const userStatus = profileData.data.status;
+                // Block access if user is pending or rejected
+                if (userStatus === 'pending') {
+                  setError('root', {
+                    message: 'Your account is pending admin approval. Please wait for approval.',
+                  });
+                  return;
+                }
+                if (userStatus === 'rejected') {
+                  setError('root', {
+                    message: 'Your account has been rejected. Please contact support.',
+                  });
+                  return;
+                }
+                // Only allow approved users and admins
+                if (userStatus !== 'approved' && profileData.data.role !== 'admin') {
+                  setError('root', {
+                    message: 'Access denied. Your account needs admin approval.',
+                  });
+                  return;
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Profile fetch error:', err);
+          }
+        }
+        // User is approved, redirect to products page for the module they logged in to
         navigate(`/${module}-products`);
         onSuccess?.();
       } else {

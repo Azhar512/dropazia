@@ -61,7 +61,8 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess, module }) => {
         module: data.module,
       });
       setIsSuccess(true);
-      onSuccess?.();
+      // DO NOT call onSuccess - user must wait for admin approval before accessing dashboard
+      // onSuccess?.(); // REMOVED - prevents auto-navigation after registration
     } catch (error) {
       setError('root', {
         message: error instanceof Error ? error.message : 'Registration failed',

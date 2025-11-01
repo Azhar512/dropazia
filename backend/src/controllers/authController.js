@@ -217,27 +217,39 @@ const login = async (req, res) => {
       });
     }
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+          // Check if user is approved before allowing login
+          if (user.status !== 'approved' && user.role !== 'admin') {
+            return res.status(403).json({
+              success: false,
+              message: user.status === 'pending' 
+                ? 'Your account is pending admin approval. Please wait for approval before logging in.'
+                : user.status === 'rejected'
+                ? 'Your account has been rejected. Please contact support.'
+                : 'Access denied. Your account needs admin approval.'
+            });
+          }
 
-    res.json({
-      success: true,
-      message: 'Login successful',
-      data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          status: user.status
-        },
-        token
-      }
-    });
+          // Generate JWT token
+          const token = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+          );
+
+          res.json({
+            success: true,
+            message: 'Login successful',
+            data: {
+              user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                status: user.status
+              },
+              token
+            }
+          });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({

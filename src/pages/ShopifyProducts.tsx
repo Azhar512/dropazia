@@ -30,12 +30,34 @@ const ShopifyProducts = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Check if user is approved - block access if pending or rejected
+  React.useEffect(() => {
+    if (user) {
+      if (user.status === 'pending') {
+        toast.error('Your account is pending approval. Please wait for admin approval.');
+        navigate('/user-dashboard');
+        return;
+      }
+      if (user.status === 'rejected') {
+        toast.error('Your account has been rejected. Please contact support.');
+        navigate('/user-dashboard');
+        return;
+      }
+      // Only allow approved users or admins
+      if (user.status !== 'approved' && user.role !== 'admin') {
+        toast.error('Access denied. Your account needs admin approval.');
+        navigate('/user-dashboard');
+        return;
+      }
+    }
+  }, [user, navigate]);
+
   // Get Shopify products from shared context
   const shopifyProducts = getProductsByModule('shopify');
 
-  // Refresh wishlist on mount
+  // Refresh wishlist on mount (only for approved users)
   React.useEffect(() => {
-    if (user) {
+    if (user && user.status === 'approved') {
       refreshWishlist('shopify');
     }
   }, [user, refreshWishlist]);

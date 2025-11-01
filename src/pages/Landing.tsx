@@ -12,14 +12,20 @@ const Landing = () => {
   const [keySequence, setKeySequence] = useState<string[]>([]);
   const [showAdminAccess, setShowAdminAccess] = useState(false);
 
-  // Handle module click - require authentication
+  // Handle module click - require authentication and approval
   const handleModuleClick = (module: 'daraz' | 'shopify') => {
     if (!user) {
       // Redirect to login page for that module
       navigate(module === 'daraz' ? '/daraz' : '/shopify');
     } else {
-      // User is logged in, navigate to products
-      navigate(`/${module}-products`);
+      // Check if user is approved before allowing access
+      if (user.status !== 'approved' && user.role !== 'admin') {
+        // User is not approved, redirect to user dashboard
+        navigate('/user-dashboard');
+      } else {
+        // User is logged in and approved, navigate to products
+        navigate(`/${module}-products`);
+      }
     }
   };
 
