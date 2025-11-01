@@ -52,10 +52,16 @@ const authenticateToken = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
+    console.error('❌ Auth middleware error:', error);
+    console.error('❌ Auth error details:', {
+      name: error.name,
+      message: error.message,
+      hasToken: !!authHeader
+    });
     return res.status(403).json({
       success: false,
-      message: 'Invalid token'
+      message: error.name === 'JsonWebTokenError' ? 'Invalid or expired token' : 'Authentication failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

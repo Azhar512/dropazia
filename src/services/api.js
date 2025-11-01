@@ -20,12 +20,20 @@ class ApiService {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.message || 'API request failed');
+        console.error(`❌ API Error ${response.status}:`, data);
+        const error = new Error(data.message || data.error || 'API request failed');
+        error.status = response.status;
+        error.response = data;
+        throw error;
       }
       
       return data;
     } catch (error) {
-      console.error('API Error:', error);
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        console.error('❌ Network Error: Could not reach API server');
+        throw new Error('Network error: Could not connect to server. Please check your connection.');
+      }
+      console.error('❌ API Error:', error);
       throw error;
     }
   }

@@ -170,10 +170,12 @@ const AdminProductManagement = ({ products, onProductsChange }: AdminProductMana
         title: 'Product Added',
         description: `${productData.name} has been added successfully.`,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ Product creation error:', error);
+      const errorMessage = error?.message || error?.response?.data?.message || 'Failed to add product. Please try again.';
       toast({
         title: 'Error',
-        description: 'Failed to add product. Please try again.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {

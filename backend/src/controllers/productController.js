@@ -147,11 +147,26 @@ const createProduct = async (req, res) => {
       data: product
     });
   } catch (error) {
-    console.error('Create product error:', error);
+    console.error('❌ Create product error:', error);
+    console.error('❌ Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      user: req.user?.id,
+      productData: {
+        name,
+        category,
+        price,
+        module
+      }
+    });
+    
+    // Return more detailed error for debugging
     res.status(500).json({
       success: false,
       message: 'Failed to create product',
-      error: error.message
+      error: error.message,
+      ...(process.env.NODE_ENV === 'development' && { details: error.stack })
     });
   }
 };

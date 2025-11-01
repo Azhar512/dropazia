@@ -152,7 +152,9 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
   const addProduct = async (productData: Omit<Product, 'id'>) => {
     try {
       setError(null);
+      console.log('🔄 Creating product:', productData);
       const response = await ApiService.createProduct(productData);
+      console.log('✅ Product created:', response);
       
       // Map the created product to frontend format
       const mappedProduct = {
@@ -164,10 +166,12 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
       };
       
       setProducts(prev => [...prev, mappedProduct]);
-    } catch (err) {
-      console.error('Failed to create product:', err);
-      setError('Failed to create product');
-      throw err;
+      console.log('✅ Product added to context');
+    } catch (err: any) {
+      console.error('❌ Failed to create product:', err);
+      const errorMessage = err?.message || err?.response?.data?.message || 'Failed to create product';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
