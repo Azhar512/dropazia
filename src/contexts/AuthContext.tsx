@@ -114,6 +114,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setIsLoading(true);
       setError(null);
+      
+      console.log('🔄 Registering user:', { email: data.email, name: data.name });
+      
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/register`, {
         method: 'POST',
         headers: {
@@ -123,15 +126,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       const result = await response.json();
+      console.log('📥 Registration response:', result);
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Registration failed');
+      if (!response.ok) {
+        const errorMsg = result.message || result.error || `Registration failed (${response.status})`;
+        console.error('❌ Registration failed:', errorMsg);
+        throw new Error(errorMsg);
       }
 
+      if (!result.success) {
+        const errorMsg = result.message || 'Registration failed';
+        console.error('❌ Registration not successful:', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      console.log('✅ Registration successful');
       // Registration successful - user needs admin approval
       // Don't log them in automatically
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Registration failed';
+      console.error('❌ Registration error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Registration failed. Please try again.';
       setError(errorMessage);
       throw err;
     } finally {

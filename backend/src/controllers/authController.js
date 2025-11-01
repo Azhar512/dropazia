@@ -20,7 +20,12 @@ const isStrongPassword = (password) => {
 // Register new user
 const register = async (req, res) => {
   try {
-    const { name, email, password, phone, role = 'buyer', module } = req.body;
+    let { name, email, password, phone, role = 'buyer', module } = req.body;
+    
+    // Map 'reseller' to 'seller' for backend compatibility
+    if (role === 'reseller') {
+      role = 'seller';
+    }
 
     // Validate required fields
     if (!name || !email || !password) {
@@ -46,6 +51,10 @@ const register = async (req, res) => {
       });
     }
 
+    // Ensure database connection
+    const connectDB = require('../config/database');
+    await connectDB();
+
     // Check if user already exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
@@ -59,18 +68,39 @@ const register = async (req, res) => {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Create user
-    const user = new User({
+    console.log('📝 Creating new user:', {
       name,
       email: email.toLowerCase(),
-      passwordHash,
-      phone,
       role,
       module,
-      status: 'pending'
+      phone: phone || 'not provided'
     });
 
+    // Create user - ensure all required fields are valid
+    const userData = {
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      passwordHash,
+      status: 'pending',
+      isActive: true
+    };
+    
+    // Add optional fields only if provided
+    if (phone && phone.trim()) {
+      userData.phone = phone.trim();
+    }
+    if (role && ['buyer', 'seller', 'admin'].includes(role)) {
+      userData.role = role;
+    }
+    if (module && ['daraz', 'shopify'].includes(module)) {
+      userData.module = module;
+    }
+
+    console.log('📝 User data to save:', { ...userData, passwordHash: '***' });
+
+    const user = new User(userData);
     await user.save();
+    console.log('✅ User created successfully:', user._id, user.email);
 
     // Ensure JWT_SECRET is configured
     if (!process.env.JWT_SECRET) {
@@ -102,11 +132,28 @@ const register = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('❌ Registration error:', error);
+    console.error('❌ Registration error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      body: req.body
+    });
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to register user';
+    if (error.code === 11000) {
+      errorMessage = 'Email already exists';
+    } else if (error.name === 'ValidationError') {
+      errorMessage = error.message;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
     res.status(500).json({
       success: false,
-      message: 'Failed to register user',
-      error: error.message
+      message: errorMessage,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

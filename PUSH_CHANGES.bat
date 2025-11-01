@@ -7,7 +7,7 @@ echo.
 git add -A
 echo ✅ Files staged
 
-git commit -m "feat: Add users API endpoint and fix admin dashboard to show real pending users"
+git commit -m "feat: Add users API + fix admin dashboard + fix user registration with better error handling"
 echo ✅ Changes committed
 
 git push origin main
