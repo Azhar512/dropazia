@@ -4,6 +4,16 @@ const mongoose = require('mongoose');
 // Get all products
 const getAllProducts = async (req, res) => {
   try {
+    // Check database connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error('❌ Database not connected. State:', mongoose.connection.readyState);
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection not available',
+        error: 'Please try again in a moment'
+      });
+    }
+
     const { module, status, category } = req.query;
     
     let filter = {};
@@ -11,21 +21,37 @@ const getAllProducts = async (req, res) => {
     if (status) filter.status = status;
     if (category) filter.category = category;
 
+    // Try to populate, but don't fail if user doesn't exist
     const products = await Product.find(filter)
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
+      .populate({
+        path: 'createdBy',
+        select: 'name email',
+        model: 'User',
+        // Handle case where user might not exist
+        strictPopulate: false
+      })
+      .sort({ createdAt: -1 })
+      .lean(); // Use lean() for better performance
+
+    // Clean up products - set createdBy to null if populate failed
+    const cleanedProducts = products.map(product => ({
+      ...product,
+      createdBy: product.createdBy || null
+    }));
 
     res.json({
       success: true,
-      data: products,
-      count: products.length
+      data: cleanedProducts,
+      count: cleanedProducts.length
     });
   } catch (error) {
-    console.error('Get products error:', error);
+    console.error('❌ Get products error:', error);
+    console.error('❌ Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch products',
-      error: error.message
+      error: error.message,
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
     });
   }
 };
@@ -33,10 +59,23 @@ const getAllProducts = async (req, res) => {
 // Get product by ID
 const getProductById = async (req, res) => {
   try {
+    // Check database connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection not available'
+      });
+    }
+
     const { id } = req.params;
     
     const product = await Product.findById(id)
-      .populate('createdBy', 'name email');
+      .populate({
+        path: 'createdBy',
+        select: 'name email',
+        strictPopulate: false
+      })
+      .lean();
 
     if (!product) {
       return res.status(404).json({
@@ -47,10 +86,13 @@ const getProductById = async (req, res) => {
 
     res.json({
       success: true,
-      data: product
+      data: {
+        ...product,
+        createdBy: product.createdBy || null
+      }
     });
   } catch (error) {
-    console.error('Get product error:', error);
+    console.error('❌ Get product error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch product',
@@ -255,6 +297,14 @@ const deleteProduct = async (req, res) => {
 // Get products by module
 const getProductsByModule = async (req, res) => {
   try {
+    // Check database connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection not available'
+      });
+    }
+
     const { module } = req.params;
     const { status = 'active' } = req.query;
 
@@ -262,16 +312,26 @@ const getProductsByModule = async (req, res) => {
       module, 
       status 
     })
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
+      .populate({
+        path: 'createdBy',
+        select: 'name email',
+        strictPopulate: false
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const cleanedProducts = products.map(product => ({
+      ...product,
+      createdBy: product.createdBy || null
+    }));
 
     res.json({
       success: true,
-      data: products,
-      count: products.length
+      data: cleanedProducts,
+      count: cleanedProducts.length
     });
   } catch (error) {
-    console.error('Get products by module error:', error);
+    console.error('❌ Get products by module error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch products',
