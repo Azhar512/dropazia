@@ -17,17 +17,22 @@ const connectDB = async () => {
     const connectionOptions = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 10000, // Increased for serverless
       socketTimeoutMS: 45000,
       // Ensure data persistence - no automatic expiration
       retryWrites: true, // Retry writes for reliability
       w: 'majority', // Write concern - ensure data is written to majority of nodes
-      // Keep connection alive
-      keepAlive: true,
-      keepAliveInitialDelay: 300000, // 5 minutes
-      // Auto-reconnect settings
-      bufferMaxEntries: 0, // Disable mongoose buffering
-      bufferCommands: false,
+      // Serverless-friendly settings
+      ...(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME ? {
+        // Serverless: shorter timeouts, no keep-alive
+        maxPoolSize: 1, // Limit connections for serverless
+      } : {
+        // Traditional server: keep-alive enabled
+        keepAlive: true,
+        keepAliveInitialDelay: 300000, // 5 minutes
+        bufferMaxEntries: 0, // Disable mongoose buffering
+        bufferCommands: false,
+      }),
     };
     
     await mongoose.connect(mongoURI, connectionOptions);
@@ -44,23 +49,36 @@ const connectDB = async () => {
   } catch (error) {
     console.error('❌ MongoDB connection error:', error.message);
     console.error('❌ Full error:', error);
-    // Don't exit immediately - try to reconnect
-    setTimeout(() => {
-      console.log('🔄 Attempting to reconnect...');
-      connectDB();
-    }, 5000);
+    // On Vercel/serverless, we can't use setTimeout for reconnection
+    // Throw error to let Vercel handle retry on next request
+    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      // Serverless environment - connection will be retried on next request
+      console.log('⚠️ Serverless environment detected - connection will retry on next request');
+    } else {
+      // Traditional server - can use setTimeout
+      setTimeout(() => {
+        console.log('🔄 Attempting to reconnect...');
+        connectDB();
+      }, 5000);
+    }
+    throw error; // Re-throw to ensure request fails if DB not connected
   }
 };
 
 // Handle connection events with auto-reconnect
 mongoose.connection.on('disconnected', () => {
-  console.log('⚠️ MongoDB disconnected - attempting to reconnect...');
-  // Auto-reconnect
-  setTimeout(() => {
-    if (mongoose.connection.readyState === 0) {
-      connectDB();
-    }
-  }, 5000);
+  console.log('⚠️ MongoDB disconnected');
+  // Only auto-reconnect on traditional servers (not serverless)
+  if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    console.log('🔄 Attempting to reconnect...');
+    setTimeout(() => {
+      if (mongoose.connection.readyState === 0) {
+        connectDB();
+      }
+    }, 5000);
+  } else {
+    console.log('ℹ️ Serverless environment - connection will be established on next request');
+  }
 });
 
 mongoose.connection.on('error', (err) => {
