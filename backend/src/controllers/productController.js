@@ -1,12 +1,16 @@
 const Product = require('../models/Product');
 const mongoose = require('mongoose');
 
+const connectDB = require('../config/database');
+
 // Get all products
 const getAllProducts = async (req, res) => {
   try {
-    // Check database connection
-    if (mongoose.connection.readyState !== 1) {
-      console.error('❌ Database not connected. State:', mongoose.connection.readyState);
+    // Ensure database is connected (important for serverless)
+    try {
+      await connectDB();
+    } catch (dbError) {
+      console.error('❌ Failed to connect to database:', dbError.message);
       return res.status(503).json({
         success: false,
         message: 'Database connection not available',
@@ -59,8 +63,11 @@ const getAllProducts = async (req, res) => {
 // Get product by ID
 const getProductById = async (req, res) => {
   try {
-    // Check database connection
-    if (mongoose.connection.readyState !== 1) {
+    // Ensure database is connected (important for serverless)
+    try {
+      await connectDB();
+    } catch (dbError) {
+      console.error('❌ Failed to connect to database:', dbError.message);
       return res.status(503).json({
         success: false,
         message: 'Database connection not available'
@@ -104,6 +111,16 @@ const getProductById = async (req, res) => {
 // Create new product
 const createProduct = async (req, res) => {
   try {
+    // Ensure database is connected (important for serverless)
+    try {
+      await connectDB();
+    } catch (dbError) {
+      console.error('❌ Failed to connect to database:', dbError.message);
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection not available'
+      });
+    }
     const {
       name,
       description,
@@ -297,8 +314,11 @@ const deleteProduct = async (req, res) => {
 // Get products by module
 const getProductsByModule = async (req, res) => {
   try {
-    // Check database connection
-    if (mongoose.connection.readyState !== 1) {
+    // Ensure database is connected (important for serverless)
+    try {
+      await connectDB();
+    } catch (dbError) {
+      console.error('❌ Failed to connect to database:', dbError.message);
       return res.status(503).json({
         success: false,
         message: 'Database connection not available'
