@@ -14,9 +14,14 @@ const analyticsRoutes = require('./routes/analytics');
 const profitsRoutes = require('./routes/profits');
 const wishlistRoutes = require('./routes/wishlist');
 const returnsRoutes = require('./routes/returns');
+const usersRoutes = require('./routes/users');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Trust proxy (required for Vercel/reverse proxies)
+// This allows express-rate-limit to correctly identify users
+app.set('trust proxy', true);
 
 // Connect to MongoDB
 connectDB();
@@ -92,6 +97,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/profits', profitsRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/returns', returnsRoutes);
+app.use('/api/users', usersRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

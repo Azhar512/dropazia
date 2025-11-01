@@ -127,6 +127,8 @@ const productSchema = new mongoose.Schema({
 });
 
 // Indexes for better performance
+// CRITICAL: Index on createdAt for sorting (prevents MongoDB 32MB sort error)
+productSchema.index({ createdAt: -1 });
 productSchema.index({ module: 1, status: 1 });
 productSchema.index({ category: 1 });
 productSchema.index({ name: 'text', description: 'text' });

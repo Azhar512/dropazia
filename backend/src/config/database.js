@@ -30,8 +30,7 @@ const connectDB = async () => {
     
     // Configure connection options for production persistence
     const connectionOptions = {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+      // Removed deprecated options: useNewUrlParser, useUnifiedTopology
       serverSelectionTimeoutMS: 10000, // Increased for serverless
       socketTimeoutMS: 45000,
       // Ensure data persistence - no automatic expiration
@@ -56,13 +55,42 @@ const connectDB = async () => {
     await connectionPromise;
 
     console.log('✅ Connected to MongoDB database');
-    console.log('📊 Database:', mongoose.connection.db.databaseName);
+    const dbName = mongoose.connection.db.databaseName;
+    console.log('📊 Database:', dbName);
+    
+    // Ensure we're not using 'test' database (MongoDB default)
+    if (dbName === 'test') {
+      console.error('❌ ERROR: Connected to "test" database!');
+      console.error('❌ Check MONGODB_URI - it should include the database name at the end');
+      console.error('❌ Example: mongodb+srv://user:pass@cluster.mongodb.net/shopdaraz');
+      throw new Error('Database name is "test" - check MONGODB_URI configuration');
+    }
+    
     console.log('🔒 Data persistence: ENABLED (no automatic deletion)');
     
     // Verify connection is stable
     const state = mongoose.connection.readyState;
     if (state === 1) {
       console.log('✅ Database connection is stable and ready');
+      
+      // CRITICAL: Ensure indexes exist (prevents MongoDB 32MB sort limit error)
+      try {
+        const Product = require('../models/Product');
+        
+        // Create indexes synchronously if they don't exist
+        // These indexes are CRITICAL for sorting operations
+        console.log('🔧 Creating/verifying product indexes...');
+        
+        await Product.collection.createIndex({ createdAt: -1 }, { background: true }).catch(() => {});
+        await Product.collection.createIndex({ module: 1, status: 1 }, { background: true }).catch(() => {});
+        await Product.collection.createIndex({ category: 1 }, { background: true }).catch(() => {});
+        await Product.collection.createIndex({ name: 'text', description: 'text' }, { background: true }).catch(() => {});
+        
+        console.log('✅ Product indexes verified/created');
+      } catch (indexError) {
+        console.error('❌ Error creating indexes:', indexError.message);
+        // Don't throw - indexes might already exist
+      }
     }
 
     // Clear the promise after successful connection

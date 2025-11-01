@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useProducts } from "@/contexts/ProductContext";
 import AdminProductManagement from "@/components/AdminProductManagement";
+import ApiService from "@/services/api";
 import { ArrowLeft, Users, ShoppingBag, Settings, CheckCircle, XCircle, Search, Plus, Edit, Trash2, Eye, Filter, BarChart3, TrendingUp, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Product } from "@/types/product";
@@ -87,16 +88,129 @@ const AdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   
   // Data state
-  const [pendingUsers, setPendingUsers] = useState<User[]>([
-    { id: 1, name: "Ali Haider", email: "abc12@gmail.com", phone: "03344895123", role: "buyer", module: "shopify", date: "2025-01-23", status: "pending" },
-    { id: 2, name: "Sara Khan", email: "sara@gmail.com", phone: "03001234567", role: "reseller", module: "daraz", date: "2025-01-23", status: "pending" },
-    { id: 4, name: "Muhammad Ali", email: "m.ali@gmail.com", phone: "03123456789", role: "buyer", module: "daraz", date: "2025-01-24", status: "pending" },
-  ]);
+  const [pendingUsers, setPendingUsers] = useState<User[]>([]);
+  const [approvedUsers, setApprovedUsers] = useState<User[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
 
-  const [approvedUsers, setApprovedUsers] = useState<User[]>([
-    { id: 3, name: "Ahmed Ali", email: "ahmed@gmail.com", phone: "03111234567", role: "buyer", module: "shopify", date: "2025-01-20", status: "approved" },
-    { id: 5, name: "Fatima Khan", email: "fatima@gmail.com", phone: "03212345678", role: "reseller", module: "daraz", date: "2025-01-18", status: "approved" },
-  ]);
+  // Fetch users from API
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setIsLoadingUsers(true);
+      try {
+        console.log('🔄 Fetching pending users...');
+        // Fetch pending users
+        const pendingResponse = await ApiService.getUsers({ status: 'pending' });
+        console.log('📥 Pending users response:', pendingResponse);
+        
+        if (pendingResponse && pendingResponse.success && pendingResponse.data) {
+          console.log(`✅ Found ${pendingResponse.data.length} pending users`);
+          const mappedPending = pendingResponse.data.map((user: any, index: number) => ({
+            id: user.id || user._id || `pending-${index}`,
+            name: user.name,
+            email: user.email,
+            phone: user.phone || '',
+            role: user.role === 'seller' ? 'reseller' : (user.role === 'buyer' ? 'buyer' : 'buyer'),
+            module: user.module || 'daraz',
+            date: user.date || (user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+            status: 'pending'
+          }));
+          console.log('📋 Mapped pending users:', mappedPending);
+          setPendingUsers(mappedPending);
+        } else {
+          console.warn('⚠️ No pending users found or invalid response:', pendingResponse);
+          setPendingUsers([]);
+        }
+
+        console.log('🔄 Fetching approved users...');
+        // Fetch approved users
+        const approvedResponse = await ApiService.getUsers({ status: 'approved' });
+        console.log('📥 Approved users response:', approvedResponse);
+        
+        if (approvedResponse && approvedResponse.success && approvedResponse.data) {
+          console.log(`✅ Found ${approvedResponse.data.length} approved users`);
+          const mappedApproved = approvedResponse.data.map((user: any, index: number) => ({
+            id: user.id || user._id || `approved-${index}`,
+            name: user.name,
+            email: user.email,
+            phone: user.phone || '',
+            role: user.role === 'seller' ? 'reseller' : (user.role === 'buyer' ? 'buyer' : 'buyer'),
+            module: user.module || 'daraz',
+            date: user.date || (user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+            status: 'approved'
+          }));
+          setApprovedUsers(mappedApproved);
+        } else {
+          console.warn('⚠️ No approved users found or invalid response:', approvedResponse);
+          setApprovedUsers([]);
+        }
+      } catch (error: any) {
+        console.error('❌ Failed to fetch users:', error);
+        console.error('❌ Error details:', {
+          message: error.message,
+          status: error.status,
+          response: error.response
+        });
+        toast({
+          title: "Error",
+          description: error.message || "Failed to load users. Please check console for details.",
+          variant: "destructive",
+        });
+        setPendingUsers([]);
+        setApprovedUsers([]);
+      } finally {
+        setIsLoadingUsers(false);
+      }
+    };
+
+    // Only fetch if user is authenticated
+    if (user && user.role === 'admin') {
+      fetchUsers();
+    } else {
+      console.log('⏸️ Skipping user fetch - not admin');
+    }
+  }, [user, toast]);
+
+  // Refresh users list
+  const refreshUsers = async () => {
+    setIsLoadingUsers(true);
+    try {
+      // Fetch pending users
+      const pendingResponse = await ApiService.getUsers({ status: 'pending' });
+      if (pendingResponse.success && pendingResponse.data) {
+        const mappedPending = pendingResponse.data.map((user: any, index: number) => ({
+          id: user.id || user._id || index + 1,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || '',
+          role: user.role === 'seller' ? 'reseller' : (user.role === 'buyer' ? 'buyer' : 'buyer'),
+          module: user.module || 'daraz',
+          date: user.date || (user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+          status: 'pending'
+        }));
+        setPendingUsers(mappedPending);
+      }
+
+      // Fetch approved users
+      const approvedResponse = await ApiService.getUsers({ status: 'approved' });
+      if (approvedResponse.success && approvedResponse.data) {
+        const mappedApproved = approvedResponse.data.map((user: any, index: number) => ({
+          id: user.id || user._id || index + 1,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || '',
+          role: user.role === 'seller' ? 'reseller' : (user.role === 'buyer' ? 'buyer' : 'buyer'),
+          module: user.module || 'daraz',
+          date: user.date || (user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+          status: 'approved'
+        }));
+        setApprovedUsers(mappedApproved);
+      }
+    } catch (error) {
+      console.error('Failed to refresh users:', error);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
 
   // Use products from shared context
   const allProducts = products;
@@ -122,24 +236,32 @@ const AdminDashboard = () => {
   });
 
   // User management functions
-  const handleApprove = async (userId: number) => {
+  const handleApprove = async (userId: number | string) => {
     setIsLoading(true);
     try {
-      const userToApprove = pendingUsers.find(user => user.id === userId);
-      if (userToApprove) {
-        // Move user from pending to approved
-        setPendingUsers(prev => prev.filter(user => user.id !== userId));
-        setApprovedUsers(prev => [...prev, { ...userToApprove, status: "approved" }]);
-        
+      const userToApprove = pendingUsers.find(user => user.id === userId || user.id.toString() === userId.toString());
+      if (!userToApprove) {
+        throw new Error('User not found');
+      }
+
+      // Call API to update user status
+      const response = await ApiService.updateUserStatus(userToApprove.id.toString(), 'approved');
+      
+      if (response.success) {
         toast({
           title: "User Approved",
           description: `${userToApprove.name} has been approved successfully.`,
         });
+        // Refresh users list
+        await refreshUsers();
+      } else {
+        throw new Error(response.message || 'Failed to approve user');
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Approve user error:', error);
       toast({
         title: "Error",
-        description: "Failed to approve user. Please try again.",
+        description: error.message || "Failed to approve user. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -147,24 +269,33 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleReject = async (userId: number) => {
+  const handleReject = async (userId: number | string) => {
     setIsLoading(true);
     try {
-      const userToReject = pendingUsers.find(user => user.id === userId);
-      if (userToReject) {
-        // Remove user from pending list
-        setPendingUsers(prev => prev.filter(user => user.id !== userId));
-        
+      const userToReject = pendingUsers.find(user => user.id === userId || user.id.toString() === userId.toString());
+      if (!userToReject) {
+        throw new Error('User not found');
+      }
+
+      // Call API to update user status
+      const response = await ApiService.updateUserStatus(userToReject.id.toString(), 'rejected');
+      
+      if (response.success) {
         toast({
           title: "User Rejected",
           description: `${userToReject.name} has been rejected.`,
           variant: "destructive",
         });
+        // Refresh users list
+        await refreshUsers();
+      } else {
+        throw new Error(response.message || 'Failed to reject user');
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Reject user error:', error);
       toast({
         title: "Error",
-        description: "Failed to reject user. Please try again.",
+        description: error.message || "Failed to reject user. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -332,7 +463,16 @@ const AdminDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredPendingUsers.length === 0 ? (
+                    {isLoadingUsers ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8">
+                          <div className="flex items-center justify-center">
+                            <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                            <span className="ml-2 text-muted-foreground">Loading users...</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredPendingUsers.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                           No pending users found

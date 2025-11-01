@@ -104,6 +104,29 @@ class ApiService {
     });
   }
 
+  // User API (Admin only)
+  static async getUsers(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    return this.request(`/api/users${queryString ? `?${queryString}` : ''}`);
+  }
+
+  static async getUserById(id) {
+    return this.request(`/api/users/${id}`);
+  }
+
+  static async updateUserStatus(id, status) {
+    return this.request(`/api/users/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  static async deleteUser(id) {
+    return this.request(`/api/users/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   static async getProductsByModule(module) {
     return this.request(`/api/products/module/${module}`);
   }

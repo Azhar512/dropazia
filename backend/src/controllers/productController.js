@@ -25,17 +25,33 @@ const getAllProducts = async (req, res) => {
     if (status) filter.status = status;
     if (category) filter.category = category;
 
-    // Try to populate, but don't fail if user doesn't exist
-    const products = await Product.find(filter)
-      .populate({
-        path: 'createdBy',
-        select: 'name email',
-        model: 'User',
-        // Handle case where user might not exist
-        strictPopulate: false
-      })
-      .sort({ createdAt: -1 })
-      .lean(); // Use lean() for better performance
+    // Use aggregation pipeline to allow disk use for large sorts
+    // This prevents MongoDB 32MB in-memory sort limit error
+    const products = await Product.aggregate([
+      { $match: filter },
+      { $sort: { createdAt: -1 } },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'createdBy',
+          foreignField: '_id',
+          as: 'createdByData',
+          pipeline: [{ $project: { name: 1, email: 1 } }]
+        }
+      },
+      {
+        $addFields: {
+          createdBy: {
+            $cond: {
+              if: { $gt: [{ $size: '$createdByData' }, 0] },
+              then: { $arrayElemAt: ['$createdByData', 0] },
+              else: null
+            }
+          }
+        }
+      },
+      { $project: { createdByData: 0 } }
+    ]).allowDiskUse(true); // CRITICAL: Allows sorting large datasets
 
     // Clean up products - set createdBy to null if populate failed
     const cleanedProducts = products.map(product => ({
@@ -328,17 +344,32 @@ const getProductsByModule = async (req, res) => {
     const { module } = req.params;
     const { status = 'active' } = req.query;
 
-    const products = await Product.find({ 
-      module, 
-      status 
-    })
-      .populate({
-        path: 'createdBy',
-        select: 'name email',
-        strictPopulate: false
-      })
-      .sort({ createdAt: -1 })
-      .lean();
+    // Use aggregation pipeline to allow disk use for large sorts
+    const products = await Product.aggregate([
+      { $match: { module, status } },
+      { $sort: { createdAt: -1 } },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'createdBy',
+          foreignField: '_id',
+          as: 'createdByData',
+          pipeline: [{ $project: { name: 1, email: 1 } }]
+        }
+      },
+      {
+        $addFields: {
+          createdBy: {
+            $cond: {
+              if: { $gt: [{ $size: '$createdByData' }, 0] },
+              then: { $arrayElemAt: ['$createdByData', 0] },
+              else: null
+            }
+          }
+        }
+      },
+      { $project: { createdByData: 0 } }
+    ]).allowDiskUse(true); // CRITICAL: Allows sorting large datasets
 
     const cleanedProducts = products.map(product => ({
       ...product,

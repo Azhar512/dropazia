@@ -5,7 +5,13 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "create-admin": "node src/create-admin.js",
+    "check-db": "node src/check-database.js",
+    "setup": "node src/setup-production.js",
+    "fix-admin": "node src/fix-admin.js",
+    "diagnose": "node src/diagnose-and-fix.js",
+    "test-users": "node test-users-api.js"
   },
   "dependencies": {
     "express": "^4.18.2",
