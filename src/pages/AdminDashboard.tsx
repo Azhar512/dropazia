@@ -97,14 +97,25 @@ const AdminDashboard = () => {
     const fetchUsers = async () => {
       setIsLoadingUsers(true);
       try {
-        console.log('🔄 Fetching pending users...');
+        console.log('🔄 Fetching pending users from API...');
         // Fetch pending users
         const pendingResponse = await ApiService.getUsers({ status: 'pending' });
         console.log('📥 Pending users response:', pendingResponse);
+        console.log('📥 Response type:', typeof pendingResponse);
+        console.log('📥 Response keys:', Object.keys(pendingResponse || {}));
         
-        if (pendingResponse && pendingResponse.success && pendingResponse.data) {
-          console.log(`✅ Found ${pendingResponse.data.length} pending users`);
-          const mappedPending = pendingResponse.data.map((user: any, index: number) => ({
+        if (pendingResponse && pendingResponse.success) {
+          const pendingData = pendingResponse.data || [];
+          console.log(`✅ Found ${pendingData.length} pending users in response`);
+          
+          if (pendingData.length === 0) {
+            console.warn('⚠️ API returned success but no pending users found');
+            console.warn('⚠️ This means either:');
+            console.warn('   1. No users have registered yet');
+            console.warn('   2. All users are already approved/rejected');
+            console.warn('   3. Users exist but have different status');
+          }
+          const mappedPending = pendingData.map((user: any, index: number) => ({
             id: user.id || user._id || `pending-${index}`,
             name: user.name,
             email: user.email,
@@ -113,12 +124,25 @@ const AdminDashboard = () => {
             module: user.module || 'daraz',
             date: user.date || (user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
             status: 'pending'
-          }));
+            };
+          });
           console.log('📋 Mapped pending users:', mappedPending);
+          console.log('📋 Setting pending users state with:', mappedPending.length, 'users');
           setPendingUsers(mappedPending);
+          console.log('✅ Pending users state updated');
         } else {
-          console.warn('⚠️ No pending users found or invalid response:', pendingResponse);
+          console.error('❌ Invalid response structure:', {
+            hasSuccess: !!pendingResponse?.success,
+            hasData: !!pendingResponse?.data,
+            response: pendingResponse
+          });
           setPendingUsers([]);
+          
+          toast({
+            title: "Warning",
+            description: "Unable to load pending users. Check console for details.",
+            variant: "destructive",
+          });
         }
 
         console.log('🔄 Fetching approved users...');
@@ -162,23 +186,24 @@ const AdminDashboard = () => {
       }
     };
 
-    // Only fetch if user is authenticated
-    if (user && user.role === 'admin') {
-      fetchUsers();
-    } else {
-      console.log('⏸️ Skipping user fetch - not admin');
-    }
-  }, [user, toast]);
+    // Fetch users - run immediately and also when user changes
+    fetchUsers();
+  }, [toast]);
 
-  // Refresh users list
+  // Refresh users list (same logic as useEffect)
   const refreshUsers = async () => {
     setIsLoadingUsers(true);
     try {
-      // Fetch pending users
+      console.log('🔄 Manual refresh: Fetching pending users...');
       const pendingResponse = await ApiService.getUsers({ status: 'pending' });
-      if (pendingResponse.success && pendingResponse.data) {
-        const mappedPending = pendingResponse.data.map((user: any, index: number) => ({
-          id: user.id || user._id || index + 1,
+      console.log('📥 Refresh - Pending users response:', pendingResponse);
+      
+      if (pendingResponse && pendingResponse.success) {
+        const pendingData = pendingResponse.data || [];
+        console.log(`✅ Refresh - Found ${pendingData.length} pending users`);
+        
+        const mappedPending = pendingData.map((user: any, index: number) => ({
+          id: user.id || user._id || `pending-${index}`,
           name: user.name,
           email: user.email,
           phone: user.phone || '',
@@ -188,13 +213,19 @@ const AdminDashboard = () => {
           status: 'pending'
         }));
         setPendingUsers(mappedPending);
+        
+        toast({
+          title: "Refreshed",
+          description: `Found ${pendingData.length} pending users`,
+        });
       }
 
-      // Fetch approved users
+      console.log('🔄 Manual refresh: Fetching approved users...');
       const approvedResponse = await ApiService.getUsers({ status: 'approved' });
-      if (approvedResponse.success && approvedResponse.data) {
-        const mappedApproved = approvedResponse.data.map((user: any, index: number) => ({
-          id: user.id || user._id || index + 1,
+      if (approvedResponse && approvedResponse.success) {
+        const approvedData = approvedResponse.data || [];
+        const mappedApproved = approvedData.map((user: any, index: number) => ({
+          id: user.id || user._id || `approved-${index}`,
           name: user.name,
           email: user.email,
           phone: user.phone || '',
@@ -205,8 +236,13 @@ const AdminDashboard = () => {
         }));
         setApprovedUsers(mappedApproved);
       }
-    } catch (error) {
-      console.error('Failed to refresh users:', error);
+    } catch (error: any) {
+      console.error('❌ Failed to refresh users:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to refresh users",
+        variant: "destructive",
+      });
     } finally {
       setIsLoadingUsers(false);
     }
@@ -444,6 +480,18 @@ const AdminDashboard = () => {
                     className="pl-10"
                   />
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={refreshUsers}
+                  disabled={isLoadingUsers}
+                >
+                  {isLoadingUsers ? (
+                    <>Refreshing...</>
+                  ) : (
+                    <>Refresh</>
+                  )}
+                </Button>
                 <Badge variant="outline" className="px-3 py-1">
                   {filteredPendingUsers.length} pending
                 </Badge>

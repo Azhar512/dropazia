@@ -5,23 +5,44 @@ const connectDB = require('../config/database');
 // Get all users (Admin only)
 const getAllUsers = async (req, res) => {
   try {
+    console.log('🔍 GET /api/users called');
+    console.log('🔍 Query params:', req.query);
+    console.log('🔍 User making request:', req.user?.email, req.user?.role);
+    
     // Ensure database is connected
     await connectDB();
 
     const { status, role, module } = req.query;
     
     let filter = {};
-    if (status) filter.status = status;
-    if (role) filter.role = role;
-    if (module) filter.module = module;
+    if (status) {
+      filter.status = status;
+      console.log(`📌 Filtering by status: ${status}`);
+    }
+    if (role) {
+      filter.role = role;
+      console.log(`📌 Filtering by role: ${role}`);
+    }
+    if (module) {
+      filter.module = module;
+      console.log(`📌 Filtering by module: ${module}`);
+    }
 
-    console.log('🔍 Fetching users with filter:', filter);
+    console.log('🔍 Final filter:', filter);
     const users = await User.find(filter)
       .select('-passwordHash -__v')
       .sort({ createdAt: -1 })
       .lean();
 
     console.log(`📊 Found ${users.length} users matching filter`);
+    if (users.length > 0) {
+      console.log('📋 Sample user:', {
+        name: users[0].name,
+        email: users[0].email,
+        status: users[0].status,
+        role: users[0].role
+      });
+    }
 
     // Map MongoDB _id to id for frontend compatibility
     const mappedUsers = users.map(user => ({
