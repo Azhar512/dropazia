@@ -87,60 +87,70 @@ const AdminDashboard = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(false);
   
-  // Data state
+  // Data state - ALWAYS start empty (no mock data)
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
 
-  // Fetch users from API
+  // Fetch users from API - CRITICAL: Always fetch from database, never use cached/mock data
   useEffect(() => {
     const fetchUsers = async () => {
       setIsLoadingUsers(true);
       try {
+        console.log('🔄 ==========================================');
+        console.log('🔄 FETCHING USERS FROM DATABASE (REAL API CALL)');
+        console.log('🔄 ==========================================');
+        console.log('🔄 Time:', new Date().toISOString());
+        
+        // CRITICAL: Clear any existing state first to prevent showing stale data
+        setPendingUsers([]);
+        setApprovedUsers([]);
+        
         console.log('🔄 Fetching pending users from API...');
-        // Fetch pending users
-        const pendingResponse = await ApiService.getUsers({ status: 'pending' });
-        console.log('📥 Pending users response:', pendingResponse);
-        console.log('📥 Response type:', typeof pendingResponse);
-        console.log('📥 Response keys:', Object.keys(pendingResponse || {}));
+        console.log('🔄 API URL:', `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users?status=pending`);
+        
+        // Fetch pending users with cache-busting
+        const pendingResponse = await ApiService.getUsers({ status: 'pending', _t: Date.now() });
+        console.log('📥 Pending users response:', JSON.stringify(pendingResponse, null, 2));
         
         if (pendingResponse && pendingResponse.success) {
           const pendingData = pendingResponse.data || [];
-          console.log(`✅ Found ${pendingData.length} pending users in response`);
+          console.log(`✅ API returned ${pendingData.length} pending users from DATABASE`);
           
           if (pendingData.length === 0) {
-            console.warn('⚠️ API returned success but no pending users found');
-            console.warn('⚠️ This means either:');
-            console.warn('   1. No users have registered yet');
-            console.warn('   2. All users are already approved/rejected');
-            console.warn('   3. Users exist but have different status');
+            console.warn('⚠️ DATABASE HAS NO PENDING USERS');
+            console.warn('⚠️ This is CORRECT - there are no pending users in the database');
+            console.warn('⚠️ When users register, they will appear here');
+            setPendingUsers([]); // Ensure empty array
+          } else {
+            // Map users from database response
+            const mappedPending = pendingData.map((user: any) => {
+              const mapped = {
+                id: user.id || user._id?.toString() || '',
+                name: user.name || '',
+                email: user.email || '',
+                phone: user.phone || '',
+                role: user.role === 'seller' ? 'reseller' : (user.role === 'buyer' ? 'buyer' : 'buyer'),
+                module: user.module || 'daraz',
+                date: user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                status: 'pending'
+              };
+              console.log('📋 Mapped user from database:', mapped.name, mapped.email);
+              return mapped;
+            });
+            console.log(`📋 Setting state with ${mappedPending.length} REAL users from database`);
+            setPendingUsers(mappedPending);
+            setLastFetchTime(new Date());
+            console.log('✅ Pending users state updated with REAL data');
           }
-          const mappedPending = pendingData.map((user: any, index: number) => ({
-            id: user.id || user._id || `pending-${index}`,
-            name: user.name,
-            email: user.email,
-            phone: user.phone || '',
-            role: user.role === 'seller' ? 'reseller' : (user.role === 'buyer' ? 'buyer' : 'buyer'),
-            module: user.module || 'daraz',
-            date: user.date || (user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
-            status: 'pending'
-            };
-          });
-          console.log('📋 Mapped pending users:', mappedPending);
-          console.log('📋 Setting pending users state with:', mappedPending.length, 'users');
-          setPendingUsers(mappedPending);
-          console.log('✅ Pending users state updated');
         } else {
-          console.error('❌ Invalid response structure:', {
-            hasSuccess: !!pendingResponse?.success,
-            hasData: !!pendingResponse?.data,
-            response: pendingResponse
-          });
-          setPendingUsers([]);
+          console.error('❌ API response invalid:', pendingResponse);
+          setPendingUsers([]); // Set to empty on error
           
           toast({
-            title: "Warning",
-            description: "Unable to load pending users. Check console for details.",
+            title: "API Error",
+            description: pendingResponse?.message || "Unable to load pending users from database.",
             variant: "destructive",
           });
         }
@@ -481,32 +491,37 @@ const AdminDashboard = () => {
             </TabsList>
 
             <TabsContent value="pending" className="space-y-4">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input 
-                    placeholder="Search pending users..." 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={refreshUsers}
-                  disabled={isLoadingUsers}
-                >
-                  {isLoadingUsers ? (
-                    <>Refreshing...</>
-                  ) : (
-                    <>Refresh</>
-                  )}
-                </Button>
-                <Badge variant="outline" className="px-3 py-1">
-                  {filteredPendingUsers.length} pending
-                </Badge>
-              </div>
+                     <div className="flex items-center gap-4 mb-4">
+                       <div className="relative flex-1">
+                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                         <Input 
+                           placeholder="Search pending users..." 
+                           value={searchTerm}
+                           onChange={(e) => setSearchTerm(e.target.value)}
+                           className="pl-10"
+                         />
+                       </div>
+                       <Button
+                         variant="outline"
+                         size="sm"
+                         onClick={refreshUsers}
+                         disabled={isLoadingUsers}
+                       >
+                         {isLoadingUsers ? (
+                           <>Refreshing...</>
+                         ) : (
+                           <>Refresh</>
+                         )}
+                       </Button>
+                       {lastFetchTime && (
+                         <span className="text-xs text-muted-foreground">
+                           Last refresh: {lastFetchTime.toLocaleTimeString()}
+                         </span>
+                       )}
+                       <Badge variant="outline" className="px-3 py-1">
+                         {filteredPendingUsers.length} pending
+                       </Badge>
+                     </div>
 
               <div className="rounded-lg border">
                 <Table>

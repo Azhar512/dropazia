@@ -104,11 +104,16 @@ class ApiService {
     });
   }
 
-  // User API (Admin only)
-  static async getUsers(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
-    return this.request(`/api/users${queryString ? `?${queryString}` : ''}`);
-  }
+        // User API (Admin only)
+        static async getUsers(params = {}) {
+          // Remove cache-busting param if present (internal use only)
+          const cleanParams = { ...params };
+          delete cleanParams._t;
+          const queryString = new URLSearchParams(cleanParams).toString();
+          const url = `/api/users${queryString ? `?${queryString}` : ''}`;
+          console.log('🌐 API Request: GET', url);
+          return this.request(url);
+        }
 
   static async getUserById(id) {
     return this.request(`/api/users/${id}`);
