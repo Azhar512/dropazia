@@ -21,7 +21,7 @@ interface AdminProductManagementProps {
 }
 
 const AdminProductManagement = ({ products, onProductsChange }: AdminProductManagementProps) => {
-  const { addProduct: addProductToContext, updateProduct: updateProductInContext, deleteProduct: deleteProductFromContext } = useProducts();
+  const { addProduct: addProductToContext, updateProduct: updateProductInContext, deleteProduct: deleteProductFromContext, refreshProducts } = useProducts();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -133,8 +133,9 @@ const AdminProductManagement = ({ products, onProductsChange }: AdminProductMana
         }))
       );
 
-      const product: Product = {
-        id: Date.now().toString(),
+      // Prepare product data without id (backend will generate it)
+      // Backend handles createdBy (from authenticated user), createdAt, updatedAt
+      const productData = {
         name: newProduct.name,
         description: newProduct.description,
         category: newProduct.category,
@@ -143,13 +144,13 @@ const AdminProductManagement = ({ products, onProductsChange }: AdminProductMana
         module: newProduct.module,
         status: newProduct.status,
         images,
-        documents,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        createdBy: 'admin-1'
+        documents
       };
 
-      addProductToContext(product);
+      await addProductToContext(productData);
+      
+      // Refresh products from backend to ensure sync
+      await refreshProducts();
       
       // Reset form
       setNewProduct({
@@ -167,7 +168,7 @@ const AdminProductManagement = ({ products, onProductsChange }: AdminProductMana
 
       toast({
         title: 'Product Added',
-        description: `${product.name} has been added successfully.`,
+        description: `${productData.name} has been added successfully.`,
       });
     } catch (error) {
       toast({
@@ -195,6 +196,9 @@ const AdminProductManagement = ({ products, onProductsChange }: AdminProductMana
     try {
       await updateProductInContext(editingProduct.id, editingProduct);
       
+      // Refresh products from backend to ensure sync
+      await refreshProducts();
+      
       toast({
         title: 'Product Updated',
         description: `${editingProduct.name} has been updated successfully.`,
@@ -218,6 +222,10 @@ const AdminProductManagement = ({ products, onProductsChange }: AdminProductMana
     setIsLoading(true);
     try {
       await deleteProductFromContext(productId);
+      
+      // Refresh products from backend to ensure sync
+      await refreshProducts();
+      
       toast({
         title: 'Product Deleted',
         description: 'Product has been deleted successfully.',

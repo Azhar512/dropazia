@@ -17,7 +17,25 @@ const connectDB = async () => {
 
 const seedData = async () => {
   try {
-    // Clear existing data
+    // PRODUCTION SAFETY: Prevent accidental data deletion in production
+    const isProduction = process.env.NODE_ENV === 'production';
+    const forceSeed = process.env.FORCE_SEED === 'true';
+    
+    if (isProduction && !forceSeed) {
+      console.error('❌ SEED SCRIPT BLOCKED: Cannot run seed script in production mode without FORCE_SEED=true');
+      console.error('⚠️ This is a safety measure to prevent accidental data deletion.');
+      console.error('⚠️ If you really need to seed production data, set FORCE_SEED=true in environment variables.');
+      process.exit(1);
+    }
+    
+    if (isProduction && forceSeed) {
+      console.warn('⚠️ WARNING: Running seed script in PRODUCTION with FORCE_SEED=true');
+      console.warn('⚠️ This will DELETE ALL existing users and products!');
+      console.warn('⚠️ Waiting 5 seconds... Press Ctrl+C to cancel.');
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    
+    // Clear existing data (only in development or when explicitly forced)
     await User.deleteMany({});
     await Product.deleteMany({});
     console.log('🗑️ Cleared existing data');
