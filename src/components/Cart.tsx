@@ -33,8 +33,8 @@ const Cart = () => {
     return total + (item.product!.price * item.quantity);
   }, 0);
 
-  const shipping = subtotal > 5000 ? 0 : 200; // Free shipping over 5000 PKR
-  const total = subtotal + shipping;
+  // No shipping charges in cart - only delivery charges at checkout (Rs 50 for Daraz)
+  const total = subtotal;
 
   const handleQuantityChange = (productId: string, newQuantity: number) => {
     if (newQuantity <= 0) {
@@ -159,21 +159,9 @@ const Cart = () => {
                 <span>Subtotal</span>
                 <span>{formatCurrency(subtotal)}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Shipping</span>
-                <span>
-                  {shipping === 0 ? (
-                    <span className="text-green-600">Free</span>
-                  ) : (
-                    formatCurrency(shipping)
-                  )}
-                </span>
-              </div>
-              {subtotal < 5000 && (
-                <p className="text-sm text-muted-foreground">
-                  Add {formatCurrency(5000 - subtotal)} more for free shipping
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground pt-1">
+                Delivery charges will be calculated at checkout
+              </p>
               <Separator />
               <div className="flex justify-between text-lg font-bold">
                 <span>Total</span>

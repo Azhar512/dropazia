@@ -40,29 +40,43 @@ const Checkout = () => {
     paymentMethod: 'jazzcash'
   });
 
-  // Detect module from products
-  const detectedModule = cartItems.length > 0 ? 
-    (products.find(p => p.id === cartItems[0].productId)?.module || 'daraz') : 'daraz';
-  
   // Get cart items with product details
   const cartItemsWithDetails = cartItems.map(cartItem => {
-    const product = products.find(p => p.id === cartItem.productId);
+    // Handle both productId and product_id for compatibility
+    const itemProductId = cartItem.productId || cartItem.product_id;
+    const product = products.find(p => p.id === itemProductId);
     return {
       ...cartItem,
+      productId: itemProductId,
       product: product || null
     };
   }).filter(item => item.product !== null);
 
+  // Detect module from products - use first available product
+  const detectedModule = cartItemsWithDetails.length > 0 ? 
+    (cartItemsWithDetails[0].product?.module || 'daraz') : 'daraz';
+  
+  // Debug: Log cart items to console
+  useEffect(() => {
+    console.log('🛒 Checkout - Cart Items:', cartItems);
+    console.log('🛒 Checkout - Products:', products);
+    console.log('🛒 Checkout - Cart Items With Details:', cartItemsWithDetails);
+    console.log('🛒 Checkout - Subtotal:', subtotal);
+    console.log('🛒 Checkout - Detected Module:', detectedModule);
+  }, [cartItems, products, cartItemsWithDetails, subtotal, detectedModule]);
+
   // Calculate subtotal with profit for each module
-  const subtotal = cartItemsWithDetails.reduce((total, item) => {
-    const productPrice = item.product!.price;
-    const profit = item.product!.profit || 0;
+  const subtotal = cartItemsWithDetails.length > 0 ? cartItemsWithDetails.reduce((total, item) => {
+    if (!item.product) return total;
+    const productPrice = item.product.price || 0;
+    const profit = item.product.profit || 0;
+    const quantity = item.quantity || 0;
     // For Shopify, user adds profit; for Daraz, profit is built into price
     const itemTotal = detectedModule === 'shopify' 
-      ? (productPrice + profit) * item.quantity
-      : productPrice * item.quantity;
+      ? (productPrice + profit) * quantity
+      : productPrice * quantity;
     return total + itemTotal;
-  }, 0);
+  }, 0) : 0;
 
   // Delivery charges - only for Daraz (fixed Rs 50), Shopify charges set by admin at delivery
   const deliveryCharges = detectedModule === 'daraz' ? 50 : 0;
@@ -87,6 +101,19 @@ const Checkout = () => {
       navigate('/daraz');
     }
   }, [user, navigate]);
+
+  // Show loading if products are not loaded yet
+  if (!products || products.length === 0) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Card className="p-8 text-center max-w-md">
+          <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
+          <h1 className="text-xl font-bold mb-2">Loading Checkout...</h1>
+          <p className="text-muted-foreground">Please wait while we load your cart items</p>
+        </Card>
+      </div>
+    );
+  }
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -448,24 +475,49 @@ const Checkout = () => {
 
               {/* Cart Items */}
               <div className="space-y-3 mb-4">
-                {cartItemsWithDetails.map((item) => (
-                  <div key={item.productId} className="flex gap-3">
-                    <div className="w-12 h-12 rounded bg-muted overflow-hidden">
-                      <img
-                        src={item.product!.images[0]?.url || '/placeholder.svg'}
-                        alt={item.product!.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-medium text-sm line-clamp-2">{item.product!.name}</h3>
-                      <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
-                    </div>
-                    <div className="text-sm font-medium">
-                      {formatCurrency(item.product!.price * item.quantity)}
-                    </div>
+                {cartItemsWithDetails.length === 0 ? (
+                  <div className="text-center py-4 text-muted-foreground">
+                    <p>No items in cart</p>
                   </div>
-                ))}
+                ) : (
+                  cartItemsWithDetails.map((item) => {
+                    if (!item.product) return null;
+                    const itemPrice = item.product.price || 0;
+                    const itemQuantity = item.quantity || 0;
+                    const itemTotal = itemPrice * itemQuantity;
+                    
+                    return (
+                      <div key={item.productId} className="flex gap-3 p-3 border rounded-lg">
+                        <div className="w-16 h-16 rounded bg-muted overflow-hidden flex-shrink-0">
+                          <img
+                            src={item.product.images?.[0]?.url || item.product.images?.[0] || '/placeholder.svg'}
+                            alt={item.product.name || 'Product'}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = '/placeholder.svg';
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-sm line-clamp-2 mb-1">
+                            {item.product.name || 'Product'}
+                          </h3>
+                          <p className="text-xs text-muted-foreground mb-1">
+                            Category: {item.product.category || 'N/A'}
+                          </p>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-xs text-muted-foreground">
+                              Qty: {itemQuantity} × {formatCurrency(itemPrice)}
+                            </span>
+                            <span className="text-sm font-semibold text-primary">
+                              {formatCurrency(itemTotal)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
 
               <Separator />
