@@ -9,6 +9,8 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
 
+// Make sure mongoose is available for ObjectId
+
 // Set default MongoDB URI if not in env
 if (!process.env.MONGODB_URI) {
   process.env.MONGODB_URI = 'mongodb+srv://dropazia:dropazia123@cluster0.9hv504i.mongodb.net/shopdaraz?retryWrites=true&w=majority';
@@ -26,18 +28,42 @@ const deleteMockUsers = async () => {
     await connectDB();
     console.log('✅ Connected to MongoDB\n');
     
-    // Exact mock user emails from your screenshot
+    // Exact mock user emails from your screenshot + variations
     const mockEmails = [
       'abc12@gmail.com',      // Ali Haider
       'sara@gmail.com',        // Sara Khan
-      'm.ali@gmail.com'        // Muhammad Ali
+      'm.ali@gmail.com',       // Muhammad Ali
+      'ali.haider@gmail.com',
+      'sara.khan@gmail.com',
+      'muhammad.ali@gmail.com'
+    ];
+    
+    // Also delete by name pattern (case insensitive)
+    const mockNames = [
+      'ali haider',
+      'sara khan',
+      'muhammad ali'
     ];
     
     console.log('🔍 Searching for mock users...');
     
-    // Find all users with these exact emails
-    const mockUsers = await User.find({ 
+    // Find all users with these exact emails OR names
+    const mockUsersByEmail = await User.find({ 
       email: { $in: mockEmails.map(e => e.toLowerCase()) } 
+    });
+    
+    const mockUsersByName = await User.find({
+      name: { $in: mockNames.map(n => new RegExp(n, 'i')) }
+    });
+    
+    // Combine and deduplicate
+    const allMockUserIds = new Set([
+      ...mockUsersByEmail.map(u => u._id.toString()),
+      ...mockUsersByName.map(u => u._id.toString())
+    ]);
+    
+    const mockUsers = await User.find({
+      _id: { $in: Array.from(allMockUserIds).map(id => new mongoose.Types.ObjectId(id)) }
     });
     
     if (mockUsers.length === 0) {
@@ -60,9 +86,9 @@ const deleteMockUsers = async () => {
         console.log('');
       });
       
-      // DELETE them
+      // DELETE by IDs to ensure we get all variations
       const deleteResult = await User.deleteMany({ 
-        email: { $in: mockEmails.map(e => e.toLowerCase()) } 
+        _id: { $in: mockUsers.map(u => u._id) }
       });
       
       console.log(`\n🗑️  DELETED ${deleteResult.deletedCount} mock user(s) from database`);

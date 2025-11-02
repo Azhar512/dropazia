@@ -154,14 +154,33 @@ const AdminDashboard = () => {
           const pendingData = pendingResponse.data || [];
           console.log(`✅ API returned ${pendingData.length} pending users from DATABASE`);
           
-          if (pendingData.length === 0) {
-            console.warn('⚠️ DATABASE HAS NO PENDING USERS');
-            console.warn('⚠️ This is CORRECT - there are no pending users in the database');
-            console.warn('⚠️ When users register, they will appear here');
+          // SAFETY FILTER: Explicitly filter out known mock users (even if they exist in database)
+          const MOCK_USER_EMAILS = [
+            'abc12@gmail.com',
+            'sara@gmail.com',
+            'm.ali@gmail.com',
+            'ali.haider@gmail.com',
+            'sara.khan@gmail.com',
+            'muhammad.ali@gmail.com'
+          ];
+          
+          const realUsers = pendingData.filter((user: any) => {
+            const email = (user.email || '').toLowerCase().trim();
+            const isMock = MOCK_USER_EMAILS.includes(email);
+            if (isMock) {
+              console.warn(`⚠️ Filtered out mock user: ${user.name} (${user.email})`);
+            }
+            return !isMock; // Only return non-mock users
+          });
+          
+          console.log(`📊 After filtering: ${realUsers.length} real users (filtered out ${pendingData.length - realUsers.length} mock users)`);
+          
+          if (realUsers.length === 0) {
+            console.log('✅ No pending users in database (or all were filtered as mock data)');
             setPendingUsers([]); // Ensure empty array
           } else {
-            // Map users from database response
-            const mappedPending = pendingData.map((user: any) => {
+            // Map only REAL users (not mock)
+            const mappedPending = realUsers.map((user: any) => {
               const mapped = {
                 id: user.id || user._id?.toString() || '',
                 name: user.name || '',
@@ -172,13 +191,12 @@ const AdminDashboard = () => {
                 date: user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
                 status: 'pending'
               };
-              console.log('📋 Mapped user from database:', mapped.name, mapped.email);
+              console.log('✅ Real user:', mapped.name, mapped.email);
               return mapped;
             });
-            console.log(`📋 Setting state with ${mappedPending.length} REAL users from database`);
+            console.log(`✅ Setting state with ${mappedPending.length} REAL users (NO MOCK DATA)`);
             setPendingUsers(mappedPending);
             setLastFetchTime(new Date());
-            console.log('✅ Pending users state updated with REAL data');
           }
         } else {
           console.error('❌ API response invalid:', pendingResponse);
@@ -191,26 +209,37 @@ const AdminDashboard = () => {
           });
         }
 
-        console.log('🔄 Fetching approved users...');
         // Fetch approved users
-        const approvedResponse = await ApiService.getUsers({ status: 'approved' });
-        console.log('📥 Approved users response:', approvedResponse);
+        const approvedUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users?status=approved&_t=${Date.now()}`;
+        const approvedResponse = await fetch(approvedUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          },
+          cache: 'no-store'
+        });
         
-        if (approvedResponse && approvedResponse.success && approvedResponse.data) {
-          console.log(`✅ Found ${approvedResponse.data.length} approved users`);
-          const mappedApproved = approvedResponse.data.map((user: any, index: number) => ({
-            id: user.id || user._id || `approved-${index}`,
-            name: user.name,
-            email: user.email,
-            phone: user.phone || '',
-            role: user.role === 'seller' ? 'reseller' : (user.role === 'buyer' ? 'buyer' : 'buyer'),
-            module: user.module || 'daraz',
-            date: user.date || (user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
-            status: 'approved'
-          }));
-          setApprovedUsers(mappedApproved);
+        if (approvedResponse.ok) {
+          const approvedData = await approvedResponse.json();
+          if (approvedData.success && Array.isArray(approvedData.data)) {
+            const mappedApproved = approvedData.data.map((user: any) => ({
+              id: user.id || user._id?.toString() || '',
+              name: user.name || '',
+              email: user.email || '',
+              phone: user.phone || '',
+              role: user.role === 'seller' ? 'reseller' : (user.role === 'buyer' ? 'buyer' : 'buyer'),
+              module: user.module || 'daraz',
+              date: user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+              status: 'approved'
+            }));
+            setApprovedUsers(mappedApproved);
+            console.log(`✅ Loaded ${mappedApproved.length} approved users`);
+          }
         } else {
-          console.warn('⚠️ No approved users found or invalid response:', approvedResponse);
+          console.warn('⚠️ Failed to fetch approved users');
           setApprovedUsers([]);
         }
       } catch (error: any) {
@@ -247,51 +276,103 @@ const AdminDashboard = () => {
     };
   }, [toast]);
 
-  // Refresh users list (same logic as useEffect)
+  // Refresh users list - Manual refresh button
   const refreshUsers = async () => {
     setIsLoadingUsers(true);
     try {
-      console.log('🔄 Manual refresh: Fetching pending users...');
-      const pendingResponse = await ApiService.getUsers({ status: 'pending' });
-      console.log('📥 Refresh - Pending users response:', pendingResponse);
+      console.log('🔄 Manual refresh: Fetching from database...');
       
-      if (pendingResponse && pendingResponse.success) {
-        const pendingData = pendingResponse.data || [];
-        console.log(`✅ Refresh - Found ${pendingData.length} pending users`);
-        
-        const mappedPending = pendingData.map((user: any, index: number) => ({
-          id: user.id || user._id || `pending-${index}`,
-          name: user.name,
-          email: user.email,
-          phone: user.phone || '',
-          role: user.role === 'seller' ? 'reseller' : (user.role === 'buyer' ? 'buyer' : 'buyer'),
-          module: user.module || 'daraz',
-          date: user.date || (user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
-          status: 'pending'
-        }));
-        setPendingUsers(mappedPending);
-        
-        toast({
-          title: "Refreshed",
-          description: `Found ${pendingData.length} pending users`,
-        });
+      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const token = localStorage.getItem('authToken');
+      
+      // Clear state first
+      setPendingUsers([]);
+      
+      // Fetch pending users
+      const pendingUrl = `${apiBase}/api/users?status=pending&_t=${Date.now()}`;
+      const pendingResponse = await fetch(pendingUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token || ''}`,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
+        },
+        cache: 'no-store'
+      });
+      
+      if (pendingResponse.ok) {
+        const pendingData = await pendingResponse.json();
+        if (pendingData.success && Array.isArray(pendingData.data)) {
+          // SAFETY FILTER: Block mock users
+          const MOCK_USER_EMAILS = [
+            'abc12@gmail.com',
+            'sara@gmail.com',
+            'm.ali@gmail.com',
+            'ali.haider@gmail.com',
+            'sara.khan@gmail.com',
+            'muhammad.ali@gmail.com'
+          ];
+          
+          const realUsers = pendingData.data.filter((user: any) => {
+            const email = (user.email || '').toLowerCase().trim();
+            return !MOCK_USER_EMAILS.includes(email);
+          });
+          
+          const mappedPending = realUsers.map((user: any) => ({
+            id: user.id || user._id?.toString() || '',
+            name: user.name || '',
+            email: user.email || '',
+            phone: user.phone || '',
+            role: user.role === 'seller' ? 'reseller' : (user.role === 'buyer' ? 'buyer' : 'buyer'),
+            module: user.module || 'daraz',
+            date: user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            status: 'pending'
+          }));
+          
+          setPendingUsers(mappedPending);
+          setLastFetchTime(new Date());
+          
+          if (mappedPending.length > 0) {
+            toast({
+              title: "✅ Refreshed",
+              description: `Found ${mappedPending.length} pending user(s) awaiting approval`,
+            });
+          } else {
+            toast({
+              title: "Refreshed",
+              description: "No pending users found",
+            });
+          }
+        }
       }
 
-      console.log('🔄 Manual refresh: Fetching approved users...');
-      const approvedResponse = await ApiService.getUsers({ status: 'approved' });
-      if (approvedResponse && approvedResponse.success) {
-        const approvedData = approvedResponse.data || [];
-        const mappedApproved = approvedData.map((user: any, index: number) => ({
-          id: user.id || user._id || `approved-${index}`,
-          name: user.name,
-          email: user.email,
-          phone: user.phone || '',
-          role: user.role === 'seller' ? 'reseller' : (user.role === 'buyer' ? 'buyer' : 'buyer'),
-          module: user.module || 'daraz',
-          date: user.date || (user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
-          status: 'approved'
-        }));
-        setApprovedUsers(mappedApproved);
+      // Fetch approved users
+      const approvedUrl = `${apiBase}/api/users?status=approved&_t=${Date.now()}`;
+      const approvedResponse = await fetch(approvedUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token || ''}`,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
+        },
+        cache: 'no-store'
+      });
+      
+      if (approvedResponse.ok) {
+        const approvedData = await approvedResponse.json();
+        if (approvedData.success && Array.isArray(approvedData.data)) {
+          const mappedApproved = approvedData.data.map((user: any) => ({
+            id: user.id || user._id?.toString() || '',
+            name: user.name || '',
+            email: user.email || '',
+            phone: user.phone || '',
+            role: user.role === 'seller' ? 'reseller' : (user.role === 'buyer' ? 'buyer' : 'buyer'),
+            module: user.module || 'daraz',
+            date: user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            status: 'approved'
+          }));
+          setApprovedUsers(mappedApproved);
+        }
       }
     } catch (error: any) {
       console.error('❌ Failed to refresh users:', error);
@@ -300,6 +381,8 @@ const AdminDashboard = () => {
         description: error.message || "Failed to refresh users",
         variant: "destructive",
       });
+      setPendingUsers([]);
+      setApprovedUsers([]);
     } finally {
       setIsLoadingUsers(false);
     }
