@@ -93,7 +93,8 @@ const AdminDashboard = () => {
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
 
-  // Fetch users from API - CRITICAL: Always fetch from database, never use cached/mock data
+  // COMPLETELY CLEAN - NO MOCK DATA - ONLY REAL DATABASE USERS
+  // This useEffect fetches ONLY from database API - NO hardcoded data, NO mock data, NO fallbacks
   useEffect(() => {
     const fetchUsers = async () => {
       // NUCLEAR OPTION: Force clear state immediately
