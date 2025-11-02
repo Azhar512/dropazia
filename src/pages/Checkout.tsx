@@ -190,6 +190,38 @@ const Checkout = () => {
       // Open WhatsApp in new tab
       window.open(whatsappUrl, '_blank');
 
+      // Convert PDF files to base64 for Daraz orders
+      let customerAddressDocument = null;
+      let darazCustomerDocument = null;
+      
+      if (detectedModule === 'daraz' && customerAddressFile) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(customerAddressFile);
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = error => reject(error);
+        });
+        customerAddressDocument = {
+          name: customerAddressFile.name,
+          url: base64,
+          type: 'pdf'
+        };
+      }
+      
+      if (detectedModule === 'daraz' && darazCustomerFile) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(darazCustomerFile);
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = error => reject(error);
+        });
+        darazCustomerDocument = {
+          name: darazCustomerFile.name,
+          url: base64,
+          type: 'pdf'
+        };
+      }
+
       // Create order via API (saves to database)
       const orderData = {
         customerName: formData.customerName,
@@ -215,7 +247,9 @@ const Checkout = () => {
         },
         paymentAmount: paymentAmount,
         paymentType: detectedModule === 'daraz' ? 'full' : 'delivery_only',
-        notes: `Payment receipt uploaded. WhatsApp sent to +923256045679`
+        customerAddressDocument: customerAddressDocument,
+        darazCustomerDocument: darazCustomerDocument,
+        notes: `Payment receipt uploaded. WhatsApp sent to +923256045679${detectedModule === 'daraz' ? '. Customer address and Daraz documents uploaded.' : ''}`
       };
 
       // Save order to backend database
