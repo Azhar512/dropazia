@@ -28,7 +28,7 @@ const deleteMockUsers = async () => {
     await connectDB();
     console.log('✅ Connected to MongoDB\n');
     
-    // Exact mock user emails from your screenshot + variations
+    // EXACT mock user data from your screenshot
     const mockEmails = [
       'abc12@gmail.com',      // Ali Haider
       'sara@gmail.com',        // Sara Khan
@@ -38,30 +38,45 @@ const deleteMockUsers = async () => {
       'muhammad.ali@gmail.com'
     ];
     
-    // Also delete by name pattern (case insensitive)
     const mockNames = [
       'ali haider',
       'sara khan',
       'muhammad ali'
     ];
     
+    const mockPhones = [
+      '03344895123',          // From screenshot
+      '03001234567',          // From screenshot
+      '03123456789'           // From screenshot
+    ];
+    
     console.log('🔍 Searching for mock users...');
     
-    // Find all users with these exact emails OR names
+    // Find by email
     const mockUsersByEmail = await User.find({ 
       email: { $in: mockEmails.map(e => e.toLowerCase()) } 
     });
     
+    // Find by name (case insensitive regex)
     const mockUsersByName = await User.find({
-      name: { $in: mockNames.map(n => new RegExp(n, 'i')) }
+      $or: mockNames.map(name => ({ name: new RegExp(name, 'i') }))
     });
     
-    // Combine and deduplicate
-    const allMockUserIds = new Set([
-      ...mockUsersByEmail.map(u => u._id.toString()),
-      ...mockUsersByName.map(u => u._id.toString())
-    ]);
+    // Find by phone (simpler approach - check if phone contains mock phone)
+    const allUsers = await User.find({});
+    const mockUsersByPhone = allUsers.filter(user => {
+      if (!user.phone) return false;
+      const cleanPhone = user.phone.replace(/[^0-9]/g, ''); // Remove all non-digits
+      return mockPhones.some(mockPhone => cleanPhone.includes(mockPhone) || mockPhone.includes(cleanPhone));
+    });
     
+    // Combine all mock users and deduplicate by _id
+    const allMockUserIds = new Set();
+    mockUsersByEmail.forEach(u => allMockUserIds.add(u._id.toString()));
+    mockUsersByName.forEach(u => allMockUserIds.add(u._id.toString()));
+    mockUsersByPhone.forEach(u => allMockUserIds.add(u._id.toString()));
+    
+    // Get all unique mock users
     const mockUsers = await User.find({
       _id: { $in: Array.from(allMockUserIds).map(id => new mongoose.Types.ObjectId(id)) }
     });

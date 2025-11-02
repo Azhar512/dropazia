@@ -87,11 +87,18 @@ const AdminDashboard = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(false);
   
-  // Data state - ALWAYS start empty (no mock data)
+  // Data state - FORCE EMPTY (ZERO mock data, ZERO defaults, NOTHING)
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+
+  // AGGRESSIVE: Force clear on mount to prevent ANY stale data
+  React.useEffect(() => {
+    console.log('🧹 FORCE CLEARING ALL STATE ON MOUNT - NO MOCK DATA');
+    setPendingUsers([]);
+    setApprovedUsers([]);
+  }, []);
 
   // COMPLETELY CLEAN - NO MOCK DATA - ONLY REAL DATABASE USERS
   // This useEffect fetches ONLY from database API - NO hardcoded data, NO mock data, NO fallbacks
@@ -154,7 +161,7 @@ const AdminDashboard = () => {
           const pendingData = pendingResponse.data || [];
           console.log(`✅ API returned ${pendingData.length} pending users from DATABASE`);
           
-          // SAFETY FILTER: Explicitly filter out known mock users (even if they exist in database)
+          // AGGRESSIVE SAFETY FILTER: Block ALL known mock users by email AND name
           const MOCK_USER_EMAILS = [
             'abc12@gmail.com',
             'sara@gmail.com',
@@ -164,13 +171,37 @@ const AdminDashboard = () => {
             'muhammad.ali@gmail.com'
           ];
           
+          const MOCK_USER_NAMES = [
+            'ali haider',
+            'sara khan',
+            'muhammad ali'
+          ];
+          
+          const MOCK_USER_PHONES = [
+            '03344895123',
+            '03001234567',
+            '03123456789',
+            '03214444444',
+            '03215555555',
+            '03216666666'
+          ];
+          
+          // Filter by email, name, OR phone
           const realUsers = pendingData.filter((user: any) => {
             const email = (user.email || '').toLowerCase().trim();
-            const isMock = MOCK_USER_EMAILS.includes(email);
-            if (isMock) {
-              console.warn(`⚠️ Filtered out mock user: ${user.name} (${user.email})`);
+            const name = (user.name || '').toLowerCase().trim();
+            const phone = (user.phone || '').trim().replace(/[^0-9]/g, ''); // Remove spaces/dashes
+            
+            const isMockEmail = MOCK_USER_EMAILS.includes(email);
+            const isMockName = MOCK_USER_NAMES.some(mockName => name.includes(mockName.toLowerCase()));
+            const isMockPhone = MOCK_USER_PHONES.some(mockPhone => phone.includes(mockPhone));
+            
+            if (isMockEmail || isMockName || isMockPhone) {
+              console.warn(`🚫 BLOCKED MOCK USER: ${user.name} (${user.email}) - Reason: ${isMockEmail ? 'email' : isMockName ? 'name' : 'phone'}`);
+              return false; // BLOCK THIS USER
             }
-            return !isMock; // Only return non-mock users
+            
+            return true; // Allow real users
           });
           
           console.log(`📊 After filtering: ${realUsers.length} real users (filtered out ${pendingData.length - realUsers.length} mock users)`);
@@ -303,7 +334,7 @@ const AdminDashboard = () => {
       if (pendingResponse.ok) {
         const pendingData = await pendingResponse.json();
         if (pendingData.success && Array.isArray(pendingData.data)) {
-          // SAFETY FILTER: Block mock users
+          // AGGRESSIVE SAFETY FILTER: Block by email, name, AND phone
           const MOCK_USER_EMAILS = [
             'abc12@gmail.com',
             'sara@gmail.com',
@@ -313,9 +344,22 @@ const AdminDashboard = () => {
             'muhammad.ali@gmail.com'
           ];
           
+          const MOCK_USER_NAMES = ['ali haider', 'sara khan', 'muhammad ali'];
+          const MOCK_USER_PHONES = ['03344895123', '03001234567', '03123456789'];
+          
           const realUsers = pendingData.data.filter((user: any) => {
             const email = (user.email || '').toLowerCase().trim();
-            return !MOCK_USER_EMAILS.includes(email);
+            const name = (user.name || '').toLowerCase().trim();
+            const phone = (user.phone || '').replace(/[^0-9]/g, ''); // Digits only
+            
+            const isMock = MOCK_USER_EMAILS.includes(email) ||
+                          MOCK_USER_NAMES.some(n => name.includes(n)) ||
+                          MOCK_USER_PHONES.some(p => phone.includes(p));
+            
+            if (isMock) {
+              console.warn(`🚫 BLOCKED: ${user.name} (${user.email})`);
+            }
+            return !isMock;
           });
           
           const mappedPending = realUsers.map((user: any) => ({
