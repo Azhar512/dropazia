@@ -234,11 +234,11 @@ const AdminDashboard = () => {
     // Fetch users immediately
     fetchUsers();
     
-    // Set up auto-refresh every 30 seconds to show new registrations in real-time
+    // Set up auto-refresh every 15 seconds for REAL-TIME updates (admin sees new registrations faster)
     const refreshInterval = setInterval(() => {
-      console.log('🔄 Auto-refreshing users (30s interval)...');
+      console.log('🔄 Auto-refresh: Checking for new user registrations (15s)...');
       fetchUsers();
-    }, 30000); // Refresh every 30 seconds
+    }, 15000); // Refresh every 15 seconds for faster detection of new registrations
     
     // Cleanup interval on unmount
     return () => {
@@ -526,16 +526,16 @@ const AdminDashboard = () => {
             </TabsList>
 
             <TabsContent value="pending" className="space-y-4">
-                     <div className="flex items-center gap-4 mb-4">
-                       <div className="relative flex-1">
-                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                         <Input 
-                           placeholder="Search pending users..." 
-                           value={searchTerm}
-                           onChange={(e) => setSearchTerm(e.target.value)}
-                           className="pl-10"
-                         />
-                       </div>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="Search pending users..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
                        <Button
                          variant="outline"
                          size="sm"
@@ -553,16 +553,22 @@ const AdminDashboard = () => {
                            Last refresh: {lastFetchTime.toLocaleTimeString()}
                          </span>
                        )}
-                       <Badge variant="outline" className="px-3 py-1">
-                         {filteredPendingUsers.length} pending
-                       </Badge>
-                     </div>
+                <Badge variant="outline" className="px-3 py-1">
+                  {filteredPendingUsers.length} pending
+                </Badge>
+              </div>
 
               <div className="rounded-lg border">
-                {/* DEBUG INFO - Remove in production */}
-                <div className="p-2 bg-yellow-50 border-b text-xs text-yellow-800">
-                  <strong>Debug:</strong> Showing {filteredPendingUsers.length} of {pendingUsers.length} pending users from database
-                  {lastFetchTime && ` (Last fetch: ${lastFetchTime.toLocaleTimeString()})`}
+                {/* Live status indicator */}
+                <div className="p-2 bg-blue-50 border-b text-xs text-blue-800 flex items-center justify-between">
+                  <div>
+                    <strong>Live Data:</strong> {pendingUsers.length} pending user(s) from database
+                    {lastFetchTime && ` • Last updated: ${lastFetchTime.toLocaleTimeString()}`}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>Auto-refresh: 15s</span>
+                  </div>
                 </div>
                 <Table>
                   <TableHeader>
@@ -873,12 +879,12 @@ const AdminDashboard = () => {
                       {pendingUsers.slice(0, 5).map((pendingUser) => (
                         <div key={pendingUser.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                           <div className="w-2 h-2 rounded-full bg-blue-500" />
-                          <div className="flex-1">
+                      <div className="flex-1">
                             <p className="text-sm font-medium">New user registration</p>
                             <p className="text-xs text-muted-foreground">{pendingUser.name} ({pendingUser.email}) • Pending approval</p>
-                          </div>
-                        </div>
-                      ))}
+                      </div>
+                    </div>
+                  ))}
                       {pendingUsers.length === 0 && (
                         <div className="text-center py-4 text-muted-foreground text-sm">
                           No pending users at the moment
