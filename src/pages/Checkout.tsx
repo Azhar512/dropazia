@@ -41,52 +41,58 @@ const Checkout = () => {
   });
 
   // Get cart items with product details
-  const cartItemsWithDetails = cartItems.map(cartItem => {
-    // Handle both productId and product_id for compatibility
-    const itemProductId = cartItem.productId || cartItem.product_id;
-    const product = products.find(p => p.id === itemProductId);
-    return {
-      ...cartItem,
-      productId: itemProductId,
-      product: product || null
-    };
-  }).filter(item => item.product !== null);
+  const cartItemsWithDetails = React.useMemo(() => {
+    return cartItems.map(cartItem => {
+      // Handle both productId and product_id for compatibility
+      const itemProductId = cartItem.productId || cartItem.product_id;
+      const product = products.find(p => p.id === itemProductId);
+      return {
+        ...cartItem,
+        productId: itemProductId,
+        product: product || null
+      };
+    }).filter(item => item.product !== null);
+  }, [cartItems, products]);
 
   // Detect module from products - use first available product
-  const detectedModule = cartItemsWithDetails.length > 0 ? 
-    (cartItemsWithDetails[0].product?.module || 'daraz') : 'daraz';
-  
-  // Debug: Log cart items to console
-  useEffect(() => {
-    console.log('🛒 Checkout - Cart Items:', cartItems);
-    console.log('🛒 Checkout - Products:', products);
-    console.log('🛒 Checkout - Cart Items With Details:', cartItemsWithDetails);
-    console.log('🛒 Checkout - Subtotal:', subtotal);
-    console.log('🛒 Checkout - Detected Module:', detectedModule);
-  }, [cartItems, products, cartItemsWithDetails, subtotal, detectedModule]);
+  const detectedModule = React.useMemo(() => {
+    if (cartItemsWithDetails.length === 0) return 'daraz';
+    const firstProduct = cartItemsWithDetails[0]?.product;
+    return firstProduct?.module || 'daraz';
+  }, [cartItemsWithDetails]);
 
   // Calculate subtotal with profit for each module
-  const subtotal = cartItemsWithDetails.length > 0 ? cartItemsWithDetails.reduce((total, item) => {
-    if (!item.product) return total;
-    const productPrice = item.product.price || 0;
-    const profit = item.product.profit || 0;
-    const quantity = item.quantity || 0;
-    // For Shopify, user adds profit; for Daraz, profit is built into price
-    const itemTotal = detectedModule === 'shopify' 
-      ? (productPrice + profit) * quantity
-      : productPrice * quantity;
-    return total + itemTotal;
-  }, 0) : 0;
+  const subtotal = React.useMemo(() => {
+    if (cartItemsWithDetails.length === 0) return 0;
+    
+    return cartItemsWithDetails.reduce((total, item) => {
+      if (!item.product) return total;
+      const productPrice = item.product.price || 0;
+      const profit = item.product.profit || 0;
+      const quantity = item.quantity || 0;
+      // For Shopify, user adds profit; for Daraz, profit is built into price
+      const itemTotal = detectedModule === 'shopify' 
+        ? (productPrice + profit) * quantity
+        : productPrice * quantity;
+      return total + itemTotal;
+    }, 0);
+  }, [cartItemsWithDetails, detectedModule]);
 
   // Delivery charges - only for Daraz (fixed Rs 50), Shopify charges set by admin at delivery
-  const deliveryCharges = detectedModule === 'daraz' ? 50 : 0;
+  const deliveryCharges = React.useMemo(() => {
+    return detectedModule === 'daraz' ? 50 : 0;
+  }, [detectedModule]);
   
   // Payment calculation based on module
-  const paymentAmount = detectedModule === 'daraz' 
-    ? subtotal + deliveryCharges  // Daraz: Full payment (100%) + 50 delivery upfront
-    : 0;                           // Shopify: Pay nothing upfront, admin decides delivery charges at delivery
+  const paymentAmount = React.useMemo(() => {
+    return detectedModule === 'daraz' 
+      ? subtotal + deliveryCharges  // Daraz: Full payment (100%) + 50 delivery upfront
+      : 0;                           // Shopify: Pay nothing upfront, admin decides delivery charges at delivery
+  }, [detectedModule, subtotal, deliveryCharges]);
   
-  const total = subtotal + (detectedModule === 'daraz' ? deliveryCharges : 0); // Total includes delivery only for Daraz
+  const total = React.useMemo(() => {
+    return subtotal + (detectedModule === 'daraz' ? deliveryCharges : 0);
+  }, [subtotal, detectedModule, deliveryCharges]);
 
   // Redirect if cart is empty
   useEffect(() => {
