@@ -95,6 +95,17 @@ const orderSchema = new mongoose.Schema({
   notes: String,
   items: [orderItemSchema],
   shippingAddress: shippingAddressSchema,
+  // Daraz specific documents
+  customerAddressDocument: {
+    name: String,
+    url: String,
+    type: String // 'pdf'
+  },
+  darazCustomerDocument: {
+    name: String,
+    url: String,
+    type: String // 'pdf'
+  },
   shippedAt: Date,
   deliveredAt: Date
 }, {

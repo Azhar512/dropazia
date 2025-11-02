@@ -61,6 +61,16 @@ interface Order {
     zipCode: string;
     country: string;
   };
+  customerAddressDocument?: {
+    name: string;
+    url: string;
+    type: string;
+  } | null;
+  darazCustomerDocument?: {
+    name: string;
+    url: string;
+    type: string;
+  } | null;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -1342,6 +1352,83 @@ const AdminDashboard = () => {
                           </div>
                         )}
                       </Card>
+
+                      {/* Daraz Documents - Only show for Daraz orders */}
+                      {selectedOrder.module === 'daraz' && (
+                        <Card className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <Package className="w-4 h-4" />
+                            Daraz Required Documents
+                          </h3>
+                          <div className="space-y-3">
+                            {selectedOrder.customerAddressDocument ? (
+                              <div className="p-3 border rounded-lg">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="font-medium text-sm">Customer Address Document</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {selectedOrder.customerAddressDocument.name || 'Address Document.pdf'}
+                                    </p>
+                                  </div>
+                                  {selectedOrder.customerAddressDocument.url && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        const link = document.createElement('a');
+                                        link.href = selectedOrder.customerAddressDocument.url;
+                                        link.download = selectedOrder.customerAddressDocument.name || 'address-document.pdf';
+                                        link.target = '_blank';
+                                        link.click();
+                                      }}
+                                    >
+                                      <Eye className="w-4 h-4 mr-2" />
+                                      View PDF
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="p-3 border border-yellow-300 rounded-lg bg-yellow-50">
+                                <p className="text-sm text-yellow-800">⚠️ Customer Address Document not uploaded</p>
+                              </div>
+                            )}
+
+                            {selectedOrder.darazCustomerDocument ? (
+                              <div className="p-3 border rounded-lg">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="font-medium text-sm">Daraz Customer Document</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {selectedOrder.darazCustomerDocument.name || 'Daraz Customer Document.pdf'}
+                                    </p>
+                                  </div>
+                                  {selectedOrder.darazCustomerDocument.url && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        const link = document.createElement('a');
+                                        link.href = selectedOrder.darazCustomerDocument.url;
+                                        link.download = selectedOrder.darazCustomerDocument.name || 'daraz-document.pdf';
+                                        link.target = '_blank';
+                                        link.click();
+                                      }}
+                                    >
+                                      <Eye className="w-4 h-4 mr-2" />
+                                      View PDF
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="p-3 border border-yellow-300 rounded-lg bg-yellow-50">
+                                <p className="text-sm text-yellow-800">⚠️ Daraz Customer Document not uploaded</p>
+                              </div>
+                            )}
+                          </div>
+                        </Card>
+                      )}
                     </div>
                   )}
                   <DialogFooter>

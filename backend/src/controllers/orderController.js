@@ -69,7 +69,10 @@ const createOrder = async (req, res) => {
       module: orderData.module || 'daraz',
       notes: orderData.notes || '',
       shippingAddress: orderData.shippingAddress || {},
-      items: orderItems
+      items: orderItems,
+      // Daraz specific documents (stored as base64 strings in url field)
+      customerAddressDocument: orderData.customerAddressDocument || null,
+      darazCustomerDocument: orderData.darazCustomerDocument || null
     };
 
     console.log('📦 Creating order:', {

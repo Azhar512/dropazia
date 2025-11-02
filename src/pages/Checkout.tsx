@@ -27,6 +27,12 @@ const Checkout = () => {
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   
+  // Daraz required documents
+  const [customerAddressFile, setCustomerAddressFile] = useState<File | null>(null);
+  const [customerAddressPreview, setCustomerAddressPreview] = useState<string | null>(null);
+  const [darazCustomerFile, setDarazCustomerFile] = useState<File | null>(null);
+  const [darazCustomerPreview, setDarazCustomerPreview] = useState<string | null>(null);
+  
   // Form data
   const [formData, setFormData] = useState({
     customerName: user?.name || '',
@@ -151,6 +157,22 @@ const Checkout = () => {
         setPaymentStep('details');
         setIsProcessing(false);
         return;
+      }
+
+      // Validate Daraz required documents
+      if (detectedModule === 'daraz') {
+        if (!customerAddressFile) {
+          alert('Please upload customer address details PDF document. This is required for Daraz orders.');
+          setPaymentStep('details');
+          setIsProcessing(false);
+          return;
+        }
+        if (!darazCustomerFile) {
+          alert('Please upload Daraz customer document PDF. This is required for Daraz orders.');
+          setPaymentStep('details');
+          setIsProcessing(false);
+          return;
+        }
       }
 
       // Create WhatsApp message with order details
@@ -415,6 +437,111 @@ const Checkout = () => {
               </div>
             </Card>
 
+            {/* Daraz Required Documents */}
+            {detectedModule === 'daraz' && (
+              <Card className="p-6 border-2 border-orange-500">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold">
+                    D
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-orange-700">Daraz Required Documents</h2>
+                    <p className="text-xs text-orange-600">Please upload the following documents (PDF only)</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  {/* Customer Address Document */}
+                  <div className="p-4 border border-orange-300 rounded-lg bg-orange-50">
+                    <Label htmlFor="customerAddress" className="text-sm font-semibold block mb-2 text-orange-800">
+                      Customer Address Details PDF * <span className="text-xs font-normal">(Required for Daraz)</span>
+                    </Label>
+                    <p className="text-xs text-orange-700 mb-3">
+                      Upload the PDF document containing your customer address details
+                    </p>
+                    <Input
+                      id="customerAddress"
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      onChange={handleCustomerAddressUpload}
+                      className="cursor-pointer"
+                      required={detectedModule === 'daraz'}
+                    />
+                    {customerAddressFile && (
+                      <div className="mt-3 p-2 bg-white rounded border border-orange-200">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-red-500 rounded flex items-center justify-center text-white text-xs font-bold">
+                            PDF
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{customerAddressFile.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {(customerAddressFile.size / 1024).toFixed(2)} KB
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setCustomerAddressFile(null);
+                              setCustomerAddressPreview(null);
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Daraz Customer Document */}
+                  <div className="p-4 border border-orange-300 rounded-lg bg-orange-50">
+                    <Label htmlFor="darazCustomer" className="text-sm font-semibold block mb-2 text-orange-800">
+                      Daraz Customer Document PDF * <span className="text-xs font-normal">(Required for Daraz)</span>
+                    </Label>
+                    <p className="text-xs text-orange-700 mb-3">
+                      Upload the PDF document you received from Daraz (customer document/certificate)
+                    </p>
+                    <Input
+                      id="darazCustomer"
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      onChange={handleDarazCustomerUpload}
+                      className="cursor-pointer"
+                      required={detectedModule === 'daraz'}
+                    />
+                    {darazCustomerFile && (
+                      <div className="mt-3 p-2 bg-white rounded border border-orange-200">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-red-500 rounded flex items-center justify-center text-white text-xs font-bold">
+                            PDF
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{darazCustomerFile.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {(darazCustomerFile.size / 1024).toFixed(2)} KB
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setDarazCustomerFile(null);
+                              setDarazCustomerPreview(null);
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            )}
+
             {/* Payment Method */}
             <Card className="p-6">
               <div className="flex items-center gap-2 mb-4">
@@ -576,7 +703,11 @@ const Checkout = () => {
 
               <Button
                 onClick={handlePayment}
-                disabled={isProcessing || !receiptFile}
+                disabled={
+                  isProcessing || 
+                  !receiptFile || 
+                  (detectedModule === 'daraz' && (!customerAddressFile || !darazCustomerFile))
+                }
                 className="w-full mt-6"
                 size="lg"
               >
@@ -588,7 +719,11 @@ const Checkout = () => {
                 ) : (
                   <>
                     <CreditCard className="w-4 h-4 mr-2" />
-                    {!receiptFile ? 'Upload Receipt First' : 'Complete Order & Send Receipt via WhatsApp'}
+                    {!receiptFile 
+                      ? 'Upload Receipt First' 
+                      : detectedModule === 'daraz' && (!customerAddressFile || !darazCustomerFile)
+                      ? 'Upload Required PDF Documents First'
+                      : 'Complete Order & Send Receipt via WhatsApp'}
                   </>
                 )}
               </Button>
