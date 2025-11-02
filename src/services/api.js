@@ -164,6 +164,19 @@ class ApiService {
     });
   }
 
+  // Admin Orders API
+  static async getAllOrders(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    return this.request(`/api/orders/admin/all${queryString ? `?${queryString}` : ''}`);
+  }
+
+  static async updateOrderStatus(orderId, status, paymentStatus = null) {
+    return this.request(`/api/orders/${orderId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, paymentStatus }),
+    });
+  }
+
   // Analytics API
   static async getAnalytics(module) {
     return this.request(`/api/analytics/${module}`);

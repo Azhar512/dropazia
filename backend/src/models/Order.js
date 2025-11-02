@@ -231,10 +231,11 @@ class OrderService {
     try {
       const filter = status ? { status } : {};
       const orders = await Order.find(filter)
-        .populate('customer', 'name email')
+        .populate('customer', 'name email phone')
         .sort({ createdAt: -1 })
-        .limit(limit)
-        .skip(offset);
+        .limit(parseInt(limit))
+        .skip(parseInt(offset))
+        .lean();
 
       return orders;
     } catch (error) {

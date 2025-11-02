@@ -4,52 +4,95 @@ const Cart = require('../models/Cart');
 // Create new order
 const createOrder = async (req, res) => {
   try {
+    // Ensure database connection
+    const connectDB = require('../config/database');
+    await connectDB();
+
     const userId = req.user.id;
     const orderData = req.body;
 
-    // Get cart items to create order
-    const cartItems = await Cart.getByUserId(userId);
+    // If items are provided directly in request body, use them
+    // Otherwise, get from cart (backward compatibility)
+    let orderItems = [];
     
-    if (cartItems.length === 0) {
+    if (orderData.items && Array.isArray(orderData.items) && orderData.items.length > 0) {
+      // Items provided directly from checkout
+      orderItems = orderData.items.map(item => ({
+        product: item.product,
+        productName: item.productName,
+        productSku: item.productSku || null,
+        productImageUrl: item.productImageUrl || null,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice
+      }));
+    } else {
+      // Fallback: Get from cart
+      const cartItems = await Cart.getByUserId(userId);
+      
+      if (cartItems.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cart is empty'
+        });
+      }
+
+      orderItems = cartItems.map(item => ({
+        product: item.product_id,
+        productName: item.product_name,
+        productSku: item.sku || null,
+        productImageUrl: item.product_image_url || null,
+        quantity: item.quantity,
+        unitPrice: item.price,
+        totalPrice: item.price * item.quantity
+      }));
+    }
+
+    if (orderItems.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Cart is empty'
+        message: 'No items in order'
       });
     }
 
-    // Prepare order items
-    const orderItems = cartItems.map(item => ({
-      product: item.product_id,
-      productName: item.product_name,
-      productSku: item.sku || null,
-      productImageUrl: item.product_image_url || null,
-      quantity: item.quantity,
-      unitPrice: item.price,
-      totalPrice: item.price * item.quantity
-    }));
-
-    // Calculate total
-    const totalAmount = orderItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    // Calculate total (use provided totalAmount or calculate)
+    const totalAmount = orderData.totalAmount || orderItems.reduce((sum, item) => sum + item.totalPrice, 0);
 
     // Create order data
     const order = {
       customer: userId,
       customerName: orderData.customerName,
       customerEmail: orderData.customerEmail,
-      customerPhone: orderData.customerPhone,
+      customerPhone: orderData.customerPhone || '',
       totalAmount,
-      paymentMethod: orderData.paymentMethod,
+      paymentMethod: orderData.paymentMethod || 'jazzcash',
       module: orderData.module || 'daraz',
-      notes: orderData.notes,
-      shippingAddress: orderData.shippingAddress,
+      notes: orderData.notes || '',
+      shippingAddress: orderData.shippingAddress || {},
       items: orderItems
     };
+
+    console.log('📦 Creating order:', {
+      customer: order.customerName,
+      email: order.customerEmail,
+      items: orderItems.length,
+      total: totalAmount,
+      module: order.module
+    });
 
     // Create order
     const newOrder = await OrderService.create(order);
 
-    // Clear cart after successful order creation
-    await Cart.clearCart(userId);
+    // Clear cart after successful order creation (if cart was used)
+    if (!orderData.items || orderData.items.length === 0) {
+      try {
+        await Cart.clearCart(userId);
+      } catch (cartError) {
+        console.warn('⚠️ Could not clear cart:', cartError.message);
+      }
+    }
+
+    console.log('✅ Order created successfully:', newOrder.orderNumber);
 
     res.status(201).json({
       success: true,
@@ -58,10 +101,16 @@ const createOrder = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Create order error:', error);
+    console.error('❌ Create order error:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack,
+      body: req.body
+    });
     res.status(500).json({
       success: false,
-      message: 'Failed to create order'
+      message: 'Failed to create order',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -179,6 +228,10 @@ const updateOrderStatus = async (req, res) => {
 // Get all orders (admin only)
 const getAllOrders = async (req, res) => {
   try {
+    // Ensure database connection
+    const connectDB = require('../config/database');
+    await connectDB();
+
     if (req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
@@ -186,21 +239,58 @@ const getAllOrders = async (req, res) => {
       });
     }
 
-    const { page = 1, limit = 50, status } = req.query;
+    const { page = 1, limit = 100, status } = req.query;
     const offset = (page - 1) * limit;
 
-    const orders = await OrderService.getAll(limit, offset, status);
+    const orders = await OrderService.getAll(parseInt(limit), parseInt(offset), status);
+
+    // Map orders for frontend
+    const mappedOrders = orders.map(order => ({
+      id: order._id.toString(),
+      _id: order._id.toString(),
+      orderNumber: order.orderNumber,
+      customer: order.customer ? {
+        id: order.customer._id?.toString() || order.customer.toString(),
+        name: order.customer.name || order.customerName || 'Unknown',
+        email: order.customer.email || order.customerEmail || '',
+        phone: order.customer.phone || order.customerPhone || ''
+      } : {
+        id: order.customer?.toString() || '',
+        name: order.customerName || 'Unknown',
+        email: order.customerEmail || '',
+        phone: order.customerPhone || ''
+      },
+      customerName: order.customerName,
+      customerEmail: order.customerEmail,
+      customerPhone: order.customerPhone,
+      items: order.items || [],
+      totalAmount: order.totalAmount,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+      module: order.module,
+      shippingAddress: order.shippingAddress || {},
+      notes: order.notes,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+      shippedAt: order.shippedAt,
+      deliveredAt: order.deliveredAt
+    }));
+
+    console.log(`📊 Returning ${mappedOrders.length} orders to admin`);
 
     res.json({
       success: true,
-      data: orders
+      data: mappedOrders,
+      count: mappedOrders.length
     });
 
   } catch (error) {
-    console.error('Get all orders error:', error);
+    console.error('❌ Get all orders error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get orders'
+      message: 'Failed to get orders',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

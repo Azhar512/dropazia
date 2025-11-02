@@ -14,6 +14,7 @@ import { useCart } from '@/contexts/CartContext';
 import { useProducts } from '@/contexts/ProductContext';
 import { jazzCashService, formatCurrency, validatePaymentData } from '@/services/jazzcash';
 import { Order } from '@/types/product';
+import ApiService from '@/services/api';
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -134,24 +135,22 @@ const Checkout = () => {
       // Open WhatsApp in new tab
       window.open(whatsappUrl, '_blank');
 
-      // Create order
-      const orderId = `ORDER-${Date.now()}`;
-      const order: Order = {
-        id: orderId,
-        customerId: user!.id,
+      // Create order via API (saves to database)
+      const orderData = {
         customerName: formData.customerName,
         customerEmail: formData.customerEmail,
+        customerPhone: formData.customerPhone || '',
         items: cartItemsWithDetails.map(item => ({
-          productId: item.productId,
+          product: item.productId,
           productName: item.product!.name,
-          productImage: item.product!.images[0]?.url,
+          productImageUrl: item.product!.images[0]?.url || '',
           quantity: item.quantity,
-          price: item.product!.price,
+          unitPrice: item.product!.price,
           totalPrice: item.product!.price * item.quantity
         })),
         totalAmount: total,
-        status: 'pending',
-        paymentStatus: 'pending',
+        paymentMethod: formData.paymentMethod,
+        module: detectedModule,
         shippingAddress: {
           street: formData.street,
           city: formData.city,
@@ -159,15 +158,50 @@ const Checkout = () => {
           zipCode: formData.zipCode,
           country: formData.country
         },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        module: detectedModule,
         paymentAmount: paymentAmount,
-        paymentType: detectedModule === 'daraz' ? 'full' : 'delivery_only'
+        paymentType: detectedModule === 'daraz' ? 'full' : 'delivery_only',
+        notes: `Payment receipt uploaded. WhatsApp sent to +923256045679`
       };
 
-      // Add order to context
-      addOrder(order);
+      // Save order to backend database
+      const orderResponse = await ApiService.createOrder(orderData);
+      
+      console.log('✅ Order saved to database:', orderResponse);
+
+      // Add order to context for frontend
+      if (orderResponse.success && orderResponse.data) {
+        const backendOrder = orderResponse.data;
+        const frontendOrder: Order = {
+          id: backendOrder._id || backendOrder.id || `ORDER-${Date.now()}`,
+          customerId: user!.id,
+          customerName: formData.customerName,
+          customerEmail: formData.customerEmail,
+          items: cartItemsWithDetails.map(item => ({
+            productId: item.productId,
+            productName: item.product!.name,
+            productImage: item.product!.images[0]?.url,
+            quantity: item.quantity,
+            price: item.product!.price,
+            totalPrice: item.product!.price * item.quantity
+          })),
+          totalAmount: total,
+          status: backendOrder.status || 'pending',
+          paymentStatus: backendOrder.paymentStatus || 'pending',
+          shippingAddress: {
+            street: formData.street,
+            city: formData.city,
+            state: formData.state,
+            zipCode: formData.zipCode,
+            country: formData.country
+          },
+          createdAt: backendOrder.createdAt || new Date().toISOString(),
+          updatedAt: backendOrder.updatedAt || new Date().toISOString(),
+          module: detectedModule,
+          paymentAmount: paymentAmount,
+          paymentType: detectedModule === 'daraz' ? 'full' : 'delivery_only'
+        };
+        addOrder(frontendOrder);
+      }
 
       // Clear cart
       clearCart();
