@@ -15,23 +15,52 @@ echo.
 REM Delete mock users
 echo [1/4] Deleting mock users from database...
 cd backend
-node DELETE_MOCK_USERS_FORCE.js
+if exist "DELETE_MOCK_USERS_FORCE.js" (
+    node DELETE_MOCK_USERS_FORCE.js
+) else (
+    echo ERROR: DELETE_MOCK_USERS_FORCE.js not found in backend folder
+    pause
+    exit /b 1
+)
 cd ..
+echo.
+echo ✅ Step 1 complete
 echo.
 
 REM Push code
 echo [2/4] Staging all changes...
 git add -A
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Git add failed
+    pause
+    exit /b 1
+)
 echo ✅ Files staged
 echo.
 
 echo [3/4] Committing...
 git commit -m "fix: ULTIMATE FIX - Triple-filter mock users (email+name+phone), force empty state, aggressive cleanup"
-echo ✅ Committed
+if %ERRORLEVEL% NEQ 0 (
+    echo Warning: Commit may have failed, but continuing...
+)
+echo ✅ Committed (or no changes)
 echo.
 
 echo [4/4] Pushing to GitHub...
 git push origin main
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo ERROR: Git push failed!
+    echo.
+    echo Possible reasons:
+    echo - No internet connection
+    echo - Git credentials not set
+    echo - Repository not initialized
+    echo.
+    echo Please check and try again.
+    pause
+    exit /b 1
+)
 echo ✅ Pushed!
 echo.
 

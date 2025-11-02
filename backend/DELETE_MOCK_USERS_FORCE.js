@@ -17,7 +17,6 @@ if (!process.env.MONGODB_URI) {
 }
 
 const User = require('./src/models/User');
-const connectDB = require('./src/config/database');
 
 const deleteMockUsers = async () => {
   try {
@@ -25,7 +24,15 @@ const deleteMockUsers = async () => {
     console.log('🗑️ FORCE DELETING MOCK USERS FROM DATABASE');
     console.log('🗑️ ==========================================\n');
     
-    await connectDB();
+    // Connect directly with simple options
+    const mongoURI = process.env.MONGODB_URI || 'mongodb+srv://dropazia:dropazia123@cluster0.9hv504i.mongodb.net/shopdaraz?retryWrites=true&w=majority';
+    console.log('🔄 Connecting to MongoDB...');
+    
+    await mongoose.connect(mongoURI, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000
+    });
+    
     console.log('✅ Connected to MongoDB\n');
     
     // EXACT mock user data from your screenshot
@@ -128,10 +135,16 @@ const deleteMockUsers = async () => {
     console.log('✅ ==========================================');
     
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('❌ Error:', error.message);
+    if (error.stack) {
+      console.error('Stack:', error.stack);
+    }
     process.exit(1);
   } finally {
-    mongoose.connection.close();
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.connection.close();
+      console.log('✅ Database connection closed');
+    }
     process.exit(0);
   }
 };
