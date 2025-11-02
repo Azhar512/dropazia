@@ -96,24 +96,45 @@ const AdminDashboard = () => {
   // Fetch users from API - CRITICAL: Always fetch from database, never use cached/mock data
   useEffect(() => {
     const fetchUsers = async () => {
+      // NUCLEAR OPTION: Force clear state immediately
+      setPendingUsers([]);
+      setApprovedUsers([]);
       setIsLoadingUsers(true);
+      
       try {
         console.log('🔄 ==========================================');
         console.log('🔄 FETCHING USERS FROM DATABASE (REAL API CALL)');
+        console.log('🔄 VERSION: 2.0 - FORCE REFRESH');
         console.log('🔄 ==========================================');
         console.log('🔄 Time:', new Date().toISOString());
+        console.log('🔄 Build timestamp:', import.meta.env.VITE_BUILD_TIME || 'not set');
         
         // CRITICAL: Clear any existing state first to prevent showing stale data
+        // Force React to re-render with empty array
+        await new Promise(resolve => setTimeout(resolve, 100));
         setPendingUsers([]);
         setApprovedUsers([]);
         
         console.log('🔄 Fetching pending users from API...');
-        console.log('🔄 API URL:', `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users?status=pending`);
+        const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users?status=pending&_nocache=${Date.now()}`;
+        console.log('🔄 API URL:', apiUrl);
         
-        // Fetch pending users - NO CACHE, always fresh from database
-        const cacheBuster = `?_t=${Date.now()}`;
-        console.log('🔄 Making API call with cache buster:', cacheBuster);
-        const pendingResponse = await ApiService.getUsers({ status: 'pending', _t: Date.now() });
+        // Fetch directly with fetch to bypass any service caching
+        const pendingResponse = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          },
+          cache: 'no-store' // Force no cache
+        }).then(res => res.json()).catch(err => {
+          console.error('❌ Direct fetch error:', err);
+          // Fallback to ApiService
+          return ApiService.getUsers({ status: 'pending', _t: Date.now() });
+        });
         
         // CRITICAL: Log the full response to see what we're getting
         console.log('📥 ==========================================');

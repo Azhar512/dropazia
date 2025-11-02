@@ -6,17 +6,25 @@ class ApiService {
     console.log('🌐 API Request:', url, options);
     const token = localStorage.getItem('authToken');
     
+    // NUCLEAR OPTION: Force no cache on all requests
+    const cacheBuster = endpoint.includes('?') ? `&_nc=${Date.now()}` : `?_nc=${Date.now()}`;
+    const urlWithCacheBuster = `${url}${cacheBuster}`;
+    
     const config = {
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
         ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },
+      cache: 'no-store', // Force browser to not cache
       ...options,
     };
 
     try {
-      const response = await fetch(url, config);
+      const response = await fetch(urlWithCacheBuster, config);
       const data = await response.json();
       
       if (!response.ok) {
