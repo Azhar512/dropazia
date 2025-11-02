@@ -273,6 +273,8 @@ const getAllOrders = async (req, res) => {
       paymentMethod: order.paymentMethod,
       module: order.module,
       shippingAddress: order.shippingAddress || {},
+      customerAddressDocument: order.customerAddressDocument || null,
+      darazCustomerDocument: order.darazCustomerDocument || null,
       notes: order.notes,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
