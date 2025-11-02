@@ -110,9 +110,23 @@ const AdminDashboard = () => {
         console.log('🔄 Fetching pending users from API...');
         console.log('🔄 API URL:', `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users?status=pending`);
         
-        // Fetch pending users with cache-busting
+        // Fetch pending users - NO CACHE, always fresh from database
+        const cacheBuster = `?_t=${Date.now()}`;
+        console.log('🔄 Making API call with cache buster:', cacheBuster);
         const pendingResponse = await ApiService.getUsers({ status: 'pending', _t: Date.now() });
-        console.log('📥 Pending users response:', JSON.stringify(pendingResponse, null, 2));
+        
+        // CRITICAL: Log the full response to see what we're getting
+        console.log('📥 ==========================================');
+        console.log('📥 FULL API RESPONSE:');
+        console.log('📥 ==========================================');
+        console.log(JSON.stringify(pendingResponse, null, 2));
+        console.log('📥 ==========================================');
+        
+        // Verify response structure
+        if (!pendingResponse) {
+          console.error('❌ API returned NULL or UNDEFINED');
+          throw new Error('API returned null response');
+        }
         
         if (pendingResponse && pendingResponse.success) {
           const pendingData = pendingResponse.data || [];
@@ -524,6 +538,11 @@ const AdminDashboard = () => {
                      </div>
 
               <div className="rounded-lg border">
+                {/* DEBUG INFO - Remove in production */}
+                <div className="p-2 bg-yellow-50 border-b text-xs text-yellow-800">
+                  <strong>Debug:</strong> Showing {filteredPendingUsers.length} of {pendingUsers.length} pending users from database
+                  {lastFetchTime && ` (Last fetch: ${lastFetchTime.toLocaleTimeString()})`}
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -542,14 +561,22 @@ const AdminDashboard = () => {
                         <TableCell colSpan={7} className="text-center py-8">
                           <div className="flex items-center justify-center">
                             <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                            <span className="ml-2 text-muted-foreground">Loading users...</span>
+                            <span className="ml-2 text-muted-foreground">Loading users from database...</span>
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : filteredPendingUsers.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                          No pending users found
+                        <TableCell colSpan={7} className="text-center py-8">
+                          <div className="space-y-2">
+                            <p className="text-muted-foreground font-medium">No pending users found</p>
+                            <p className="text-xs text-muted-foreground">
+                              This means there are no users with status "pending" in the database.
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              When users register, they will appear here automatically.
+                            </p>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ) : (
