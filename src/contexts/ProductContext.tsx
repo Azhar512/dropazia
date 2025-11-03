@@ -138,6 +138,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
         specifications: product.specifications || []
       }));
       
+      console.log('📦 Mapped products:', mappedProducts.length, 'products');
       setProducts(mappedProducts);
     } catch (err) {
       console.error('❌ Failed to load products:', err);
