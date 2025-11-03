@@ -80,7 +80,17 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, logout, isAuthenticated, isLoading: authLoading } = useAuth();
-  const { products, addProduct, updateProduct, deleteProduct } = useProducts();
+  const { products, addProduct, updateProduct, deleteProduct, refreshProducts } = useProducts();
+
+  // Refresh products on dashboard load
+  React.useEffect(() => {
+    console.log('🔄 AdminDashboard: Refreshing products on mount...');
+    refreshProducts().then(() => {
+      console.log('✅ AdminDashboard: Products refreshed, total count:', products.length);
+    }).catch(err => {
+      console.error('❌ AdminDashboard: Failed to refresh products:', err);
+    });
+  }, []); // Only run on mount
 
   // For testing purposes, we'll make the admin dashboard accessible
   // In production, uncomment the authentication checks below
@@ -982,6 +992,30 @@ const AdminDashboard = () => {
             </TabsContent>
 
                 <TabsContent value="products" className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Package className="w-5 h-5" />
+                      <h2 className="text-xl font-semibold">Products Management</h2>
+                      <Badge variant="outline" className="ml-2">
+                        {allProducts.length} {allProducts.length === 1 ? 'Product' : 'Products'}
+                      </Badge>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        console.log('🔄 Manual refresh triggered by user');
+                        await refreshProducts();
+                        toast({
+                          title: "Products Refreshed",
+                          description: `Loaded ${products.length} products from database.`,
+                        });
+                      }}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Refresh Products
+                    </Button>
+                  </div>
                   <AdminProductManagement
                     products={allProducts}
                     onProductsChange={(newProducts) => {
