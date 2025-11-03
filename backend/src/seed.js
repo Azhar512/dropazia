@@ -17,28 +17,54 @@ const connectDB = async () => {
 
 const seedData = async () => {
   try {
-    // PRODUCTION SAFETY: Prevent accidental data deletion in production
+    // ULTRA-SAFE: Check database state first
+    await connectDB();
+    const existingUsers = await User.countDocuments({});
+    const existingProducts = await Product.countDocuments({});
+    
+    console.log('\n🔍 DATABASE STATE CHECK:');
+    console.log(`   Users: ${existingUsers}`);
+    console.log(`   Products: ${existingProducts}\n`);
+    
+    // CRITICAL SAFETY: Always require explicit confirmation if data exists
+    if (existingProducts > 0 || existingUsers > 0) {
+      console.error('❌❌❌ CRITICAL WARNING ❌❌❌');
+      console.error('⚠️ DATABASE CONTAINS EXISTING DATA!');
+      console.error(`⚠️ Found ${existingUsers} users and ${existingProducts} products`);
+      console.error('⚠️ Running seed script will DELETE ALL existing data!');
+      console.error('\n🔒 BLOCKED: This script is now DISABLED to prevent data loss.');
+      console.error('💡 If you need to create admin user, use: npm run create-admin');
+      console.error('💡 If you need to add products, use the admin dashboard.\n');
+      process.exit(1);
+    }
+    
+    // PRODUCTION SAFETY: Additional production check
     const isProduction = process.env.NODE_ENV === 'production';
     const forceSeed = process.env.FORCE_SEED === 'true';
     
     if (isProduction && !forceSeed) {
       console.error('❌ SEED SCRIPT BLOCKED: Cannot run seed script in production mode without FORCE_SEED=true');
       console.error('⚠️ This is a safety measure to prevent accidental data deletion.');
-      console.error('⚠️ If you really need to seed production data, set FORCE_SEED=true in environment variables.');
       process.exit(1);
     }
     
     if (isProduction && forceSeed) {
       console.warn('⚠️ WARNING: Running seed script in PRODUCTION with FORCE_SEED=true');
       console.warn('⚠️ This will DELETE ALL existing users and products!');
-      console.warn('⚠️ Waiting 5 seconds... Press Ctrl+C to cancel.');
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      console.warn('⚠️ Waiting 10 seconds... Press Ctrl+C to cancel.');
+      await new Promise(resolve => setTimeout(resolve, 10000));
     }
     
-    // Clear existing data (only in development or when explicitly forced)
-    await User.deleteMany({});
-    await Product.deleteMany({});
-    console.log('🗑️ Cleared existing data');
+    // Only clear if database is already empty (double-check)
+    const finalUserCount = await User.countDocuments({});
+    const finalProductCount = await Product.countDocuments({});
+    
+    if (finalProductCount > 0 || finalUserCount > 0) {
+      console.error('❌ ABORTED: Database still contains data. Not clearing.');
+      process.exit(1);
+    }
+    
+    console.log('✅ Database is empty, proceeding with seed...');
 
     // Create admin user
     const hashedPassword = await bcrypt.hash('admin123', 10);
