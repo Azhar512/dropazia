@@ -17,8 +17,7 @@ const connectDB = async () => {
 
 const seedData = async () => {
   try {
-    // ULTRA-SAFE: Check database state first
-    await connectDB();
+    // ULTRA-SAFE: Check database state first (connectDB already called before seedData)
     const existingUsers = await User.countDocuments({});
     const existingProducts = await Product.countDocuments({});
     
