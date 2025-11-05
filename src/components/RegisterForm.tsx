@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import { Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 
 const registerSchema = z.object({
@@ -32,6 +33,7 @@ interface RegisterFormProps {
 
 const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess, module }) => {
   const { register: registerUser, error, isLoading } = useAuth();
+  const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -61,8 +63,11 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess, module }) => {
         module: data.module,
       });
       setIsSuccess(true);
-      // DO NOT call onSuccess - user must wait for admin approval before accessing dashboard
-      // onSuccess?.(); // REMOVED - prevents auto-navigation after registration
+      // Redirect to login page after successful registration
+      // User can then login and access products immediately
+      setTimeout(() => {
+        navigate(`/${module}`);
+      }, 2000);
     } catch (error) {
       setError('root', {
         message: error instanceof Error ? error.message : 'Registration failed',
@@ -80,16 +85,9 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess, module }) => {
         </div>
         <div>
           <h3 className="text-lg font-semibold text-green-800">Registration Successful!</h3>
-          <div className="mt-4 p-4 border border-orange-200 bg-orange-50 rounded-lg">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-orange-800 space-y-2">
-                <div className="font-medium">Please wait for admin approval.</div>
-                <div>While you wait, you can contact admin through WhatsApp:</div>
-                <div className="font-semibold text-base">+92 325 6045679</div>
-              </div>
-            </div>
-          </div>
+          <p className="text-sm text-gray-600 mt-2">
+            Redirecting to login page...
+          </p>
         </div>
       </div>
     );

@@ -1,5 +1,4 @@
-const Return = require('../models/Return');
-const User = require('../models/User');
+const ReturnService = require('../models/Return');
 
 // Create a new return request
 const createReturn = async (req, res) => {
@@ -16,8 +15,9 @@ const createReturn = async (req, res) => {
     }
 
     // Create return request
-    const returnRequest = new Return({
-      user: userId,
+    const returnRequest = await ReturnService.create({
+      userId,
+      orderId: null, // Can be populated if order ID is provided
       orderNumber,
       storeName,
       email,
@@ -26,12 +26,12 @@ const createReturn = async (req, res) => {
       status: 'pending'
     });
 
-    await returnRequest.save();
+    const formatted = ReturnService.formatReturn(returnRequest);
 
     res.status(201).json({
       success: true,
       message: 'Return request submitted successfully',
-      data: returnRequest
+      data: formatted
     });
   } catch (error) {
     console.error('Create return error:', error);
@@ -49,14 +49,7 @@ const getMyReturns = async (req, res) => {
     const userId = req.user.id;
     const module = req.query.module;
 
-    const query = { user: userId };
-    if (module) {
-      query.module = module;
-    }
-
-    const returns = await Return.find(query)
-      .sort({ createdAt: -1 })
-      .populate('user', 'name email');
+    const returns = await ReturnService.getByUserId(userId, module);
 
     res.json({
       success: true,
@@ -75,10 +68,14 @@ const getMyReturns = async (req, res) => {
 // Get all returns (Admin only)
 const getAllReturns = async (req, res) => {
   try {
-    const returns = await Return.find()
-      .sort({ createdAt: -1 })
-      .populate('user', 'name email phone module role')
-      .select('-__v');
+    const { status, module, limit = 100, offset = 0 } = req.query;
+
+    const returns = await ReturnService.getAll({
+      status,
+      module,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
 
     res.json({
       success: true,
@@ -99,10 +96,7 @@ const getReturnsByUser = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const returns = await Return.find({ user: userId })
-      .sort({ createdAt: -1 })
-      .populate('user', 'name email phone module role')
-      .select('-__v');
+    const returns = await ReturnService.getByUserId(userId);
 
     res.json({
       success: true,
@@ -131,16 +125,7 @@ const updateReturnStatus = async (req, res) => {
       });
     }
 
-    const updateData = { status };
-    if (adminNotes) {
-      updateData.adminNotes = adminNotes;
-    }
-
-    const returnRequest = await Return.findByIdAndUpdate(
-      returnId,
-      updateData,
-      { new: true }
-    ).populate('user', 'name email');
+    const returnRequest = await ReturnService.updateStatus(returnId, status, adminNotes);
 
     if (!returnRequest) {
       return res.status(404).json({
@@ -171,4 +156,3 @@ module.exports = {
   getReturnsByUser,
   updateReturnStatus
 };
-

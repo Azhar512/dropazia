@@ -3,7 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
-const connectDB = require('./config/database');
+const { connectDB } = require('./config/database-supabase');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
@@ -15,6 +15,7 @@ const profitsRoutes = require('./routes/profits');
 const wishlistRoutes = require('./routes/wishlist');
 const returnsRoutes = require('./routes/returns');
 const usersRoutes = require('./routes/users');
+const walletRoutes = require('./routes/wallet');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,8 +24,12 @@ const PORT = process.env.PORT || 5000;
 // This allows express-rate-limit to correctly identify users
 app.set('trust proxy', true);
 
-// Connect to MongoDB
-connectDB();
+// Connect to Supabase PostgreSQL
+connectDB().catch(err => {
+  console.error('❌ Failed to connect to database:', err);
+  // Don't exit - allow server to run even if DB connection fails initially
+  // Connection will retry on first API call
+});
 
 // Security middleware
 app.use(helmet());
@@ -93,11 +98,13 @@ app.use('/api/auth', authRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/super-admin', require('./routes/superAdmin'));
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/profits', profitsRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/returns', returnsRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/wallet', walletRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

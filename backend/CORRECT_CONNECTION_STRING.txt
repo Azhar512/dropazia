@@ -1,0 +1,9 @@
+# Correct Connection String for backend/.env
+
+# Your password: Shaikhprince5588@
+# @ symbol must be encoded as %40 in URL
+
+DATABASE_URL=postgresql://postgres.jrajzvmcaaqqmezymyix:Shaikhprince5588%40@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+
+# Copy the line above (without the #) and paste it into backend/.env
+

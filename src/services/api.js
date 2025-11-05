@@ -242,6 +242,35 @@ class ApiService {
       body: JSON.stringify({ status, adminNotes }),
     });
   }
+
+  // Super Admin API
+  static async getSuperAdminDashboardStats() {
+    return this.request('/api/super-admin/dashboard/stats');
+  }
+
+  static async getAllAdmins() {
+    return this.request('/api/super-admin/admins');
+  }
+
+  static async createAdmin(adminData) {
+    return this.request('/api/super-admin/admins', {
+      method: 'POST',
+      body: JSON.stringify(adminData),
+    });
+  }
+
+  static async updateAdmin(adminId, adminData) {
+    return this.request(`/api/super-admin/admins/${adminId}`, {
+      method: 'PUT',
+      body: JSON.stringify(adminData),
+    });
+  }
+
+  static async deleteAdmin(adminId) {
+    return this.request(`/api/super-admin/admins/${adminId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export default ApiService;

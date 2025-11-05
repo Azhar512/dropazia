@@ -1,26 +1,10 @@
-const mongoose = require('mongoose');
+// Production Setup - Supabase PostgreSQL
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
-// Set default MongoDB URI if not in env (for production setup)
-if (!process.env.MONGODB_URI) {
-  process.env.MONGODB_URI = 'mongodb+srv://dropazia:dropazia123@cluster0.9hv504i.mongodb.net/shopdaraz?retryWrites=true&w=majority';
-  console.log('ℹ️  Using default MONGODB_URI (not set in .env)');
-}
-
-// Set default JWT_SECRET if not in env
-if (!process.env.JWT_SECRET) {
-  process.env.JWT_SECRET = 'shopdaraz-hub-production-secret-key-min-32-chars-2024';
-  console.log('ℹ️  Using default JWT_SECRET (not set in .env)');
-}
-
-if (!process.env.NODE_ENV) {
-  process.env.NODE_ENV = 'production';
-}
-
+const { connectDB } = require('./config/database-supabase');
 const User = require('./models/User');
 const Product = require('./models/Product');
-const connectDB = require('./config/database');
 
 const setupProduction = async () => {
   try {
@@ -28,13 +12,14 @@ const setupProduction = async () => {
     
     // Connect to database
     await connectDB();
-    console.log('✅ Connected to MongoDB');
-    console.log('📊 Database:', mongoose.connection.db.databaseName);
+    console.log('✅ Connected to Supabase PostgreSQL');
     console.log('');
 
     // Check current data
-    const userCount = await User.countDocuments();
-    const productCount = await Product.countDocuments();
+    const users = await User.find({});
+    const userCount = users.length;
+    const products = await Product.find({});
+    const productCount = products.length;
     
     console.log('📊 Current Database State:');
     console.log(`   Users: ${userCount}`);
@@ -42,7 +27,7 @@ const setupProduction = async () => {
     console.log('');
 
     // Check if admin exists
-    const existingAdmin = await User.findOne({ email: 'admin@shopdaraz.com' });
+    const existingAdmin = await User.findByEmail('admin@shopdaraz.com');
     
     if (existingAdmin) {
       console.log('✅ Admin user already exists!');
@@ -87,8 +72,8 @@ const setupProduction = async () => {
     console.log('   Password: admin123 (CHANGE THIS IMMEDIATELY!)');
     console.log('');
     
-    const finalUserCount = await User.countDocuments();
-    const finalProductCount = await Product.countDocuments();
+    const finalUserCount = (await User.find({})).length;
+    const finalProductCount = (await Product.find({})).length;
     console.log('📊 Final Database State:');
     console.log(`   Users: ${finalUserCount}`);
     console.log(`   Products: ${finalProductCount}`);
@@ -99,18 +84,18 @@ const setupProduction = async () => {
     console.log('   - Everything is production-ready');
 
   } catch (error) {
-    console.error('❌ Setup error:', error);
-    console.error('❌ Error details:', error.message);
+    console.error('❌ Error:', error.message);
+    console.error('❌ Details:', error);
     if (error.stack) {
       console.error('❌ Stack:', error.stack);
     }
     process.exit(1);
   } finally {
-    mongoose.connection.close();
+    const { closeDB } = require('./config/database-supabase');
+    await closeDB();
     process.exit(0);
   }
 };
 
 // Run
 setupProduction();
-

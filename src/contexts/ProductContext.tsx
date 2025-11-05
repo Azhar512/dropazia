@@ -17,6 +17,7 @@ interface ProductContextType {
   getOrdersByCustomer: (customerId: string) => Order[];
   getOrderById: (id: string) => Order | undefined;
   refreshProducts: () => Promise<void>;
+  refreshOrders: () => Promise<void>;
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
@@ -26,99 +27,12 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [orders, setOrders] = useState<Order[]>([
-    {
-      id: "order-1",
-      customerId: "user-1",
-      customerName: "John Doe",
-      customerEmail: "john@example.com",
-      items: [
-        {
-          productId: "1",
-          productName: "Summer Dress Collection",
-          productImage: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=400",
-          quantity: 2,
-          price: 2500,
-          totalPrice: 5000
-        }
-      ],
-      totalAmount: 5000,
-      status: "delivered",
-      paymentStatus: "paid",
-      shippingAddress: {
-        street: "123 Main Street",
-        city: "Karachi",
-        state: "Sindh",
-        zipCode: "75000",
-        country: "Pakistan"
-      },
-      createdAt: "2025-01-15T10:00:00Z",
-      updatedAt: "2025-01-18T14:30:00Z",
-      module: "daraz"
-    },
-    {
-      id: "order-2",
-      customerId: "user-1",
-      customerName: "John Doe",
-      customerEmail: "john@example.com",
-      items: [
-        {
-          productId: "2",
-          productName: "Men's Watch",
-          productImage: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400",
-          quantity: 1,
-          price: 5000,
-          totalPrice: 5000
-        }
-      ],
-      totalAmount: 5000,
-      status: "shipped",
-      paymentStatus: "paid",
-      shippingAddress: {
-        street: "123 Main Street",
-        city: "Karachi",
-        state: "Sindh",
-        zipCode: "75000",
-        country: "Pakistan"
-      },
-      createdAt: "2025-01-20T09:00:00Z",
-      updatedAt: "2025-01-21T11:00:00Z",
-      module: "daraz"
-    },
-    {
-      id: "order-3",
-      customerId: "user-2",
-      customerName: "Jane Smith",
-      customerEmail: "jane@example.com",
-      items: [
-        {
-          productId: "3",
-          productName: "Premium Home Decor Set",
-          productImage: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400",
-          quantity: 1,
-          price: 3500,
-          totalPrice: 3500
-        }
-      ],
-      totalAmount: 3500,
-      status: "pending",
-      paymentStatus: "pending",
-      shippingAddress: {
-        street: "456 Oak Avenue",
-        city: "Lahore",
-        state: "Punjab",
-        zipCode: "54000",
-        country: "Pakistan"
-      },
-      createdAt: "2025-01-22T15:30:00Z",
-      updatedAt: "2025-01-22T15:30:00Z",
-      module: "shopify"
-    }
-  ]);
+  const [orders, setOrders] = useState<Order[]>([]);
 
-  // Load products from API on component mount
+  // Load products and orders from API on component mount
   useEffect(() => {
     refreshProducts();
+    refreshOrders();
   }, []);
 
   const refreshProducts = async () => {
@@ -147,6 +61,63 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
       setProducts([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const refreshOrders = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        // User not logged in, clear orders
+        setOrders([]);
+        return;
+      }
+
+      console.log('🔄 Loading orders from API...');
+      const response = await ApiService.getOrders();
+      console.log('✅ Orders loaded:', response);
+      
+      if (response.success && response.data) {
+        // Map database orders to frontend format
+        const mappedOrders = (response.data.orders || response.data || []).map((order: any) => ({
+          id: order._id || order.id || order.orderNumber,
+          customerId: order.customer_id || order.customerId,
+          customerName: order.customer_name || order.customerName,
+          customerEmail: order.customer_email || order.customerEmail,
+          items: (order.items || []).map((item: any) => ({
+            productId: item.product || item.product_id || item.productId,
+            productName: item.product_name || item.productName,
+            productImage: item.product_image_url || item.productImage || item.productImageUrl,
+            quantity: item.quantity,
+            price: item.unit_price || item.unitPrice || item.price,
+            totalPrice: item.total_price || item.totalPrice
+          })),
+          totalAmount: order.total_amount || order.totalAmount,
+          paymentAmount: order.payment_amount || order.paymentAmount,
+          paymentType: order.payment_type || order.paymentType,
+          status: order.status || 'pending',
+          paymentStatus: order.payment_status || order.paymentStatus || 'pending',
+          shippingAddress: order.shipping_address || order.shippingAddress || {
+            street: '',
+            city: '',
+            state: '',
+            zipCode: '',
+            country: 'Pakistan'
+          },
+          createdAt: order.created_at || order.createdAt,
+          updatedAt: order.updated_at || order.updatedAt,
+          module: order.module || 'daraz'
+        }));
+        
+        console.log('📦 Mapped orders:', mappedOrders.length, 'orders');
+        setOrders(mappedOrders);
+      } else {
+        setOrders([]);
+      }
+    } catch (err) {
+      console.error('❌ Failed to load orders:', err);
+      // Don't set error for orders, just keep empty array
+      setOrders([]);
     }
   };
 
@@ -253,7 +224,8 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
       updateOrder,
       getOrdersByCustomer,
       getOrderById,
-      refreshProducts
+      refreshProducts,
+      refreshOrders
     }}>
       {children}
     </ProductContext.Provider>

@@ -1,23 +1,31 @@
-const mongoose = require('mongoose');
-require('dotenv').config();
+// Check Database - Supabase PostgreSQL
+const path = require('path');
+const fs = require('fs');
+// Explicitly load .env from backend directory (go up 2 levels from src/)
+const envPath = path.resolve(__dirname, '../../.env');
+if (fs.existsSync(envPath)) {
+  require('dotenv').config({ path: envPath, override: true });
+} else {
+  require('dotenv').config({ override: true });
+}
 
+const { connectDB } = require('./config/database-supabase');
 const User = require('./models/User');
 const Product = require('./models/Product');
-const connectDB = require('./config/database');
 
 const checkDatabase = async () => {
   try {
     // Connect to database
     await connectDB();
-    console.log('✅ Connected to MongoDB');
-    console.log('📊 Database:', mongoose.connection.db.databaseName);
+    console.log('✅ Connected to Supabase PostgreSQL');
     console.log('');
 
     // Check users
-    const userCount = await User.countDocuments();
-    const adminUser = await User.findOne({ email: 'admin@shopdaraz.com' });
-    const approvedUsers = await User.countDocuments({ status: 'approved' });
-    const pendingUsers = await User.countDocuments({ status: 'pending' });
+    const users = await User.find({});
+    const userCount = users.length;
+    const adminUser = await User.findByEmail('admin@shopdaraz.com');
+    const approvedUsers = users.filter(u => u.status === 'approved').length;
+    const pendingUsers = users.filter(u => u.status === 'pending').length;
 
     console.log('👤 USERS:');
     console.log(`   Total Users: ${userCount}`);
@@ -31,10 +39,11 @@ const checkDatabase = async () => {
     console.log('');
 
     // Check products
-    const productCount = await Product.countDocuments();
-    const darazProducts = await Product.countDocuments({ module: 'daraz' });
-    const shopifyProducts = await Product.countDocuments({ module: 'shopify' });
-    const activeProducts = await Product.countDocuments({ status: 'active' });
+    const products = await Product.find({});
+    const productCount = products.length;
+    const darazProducts = products.filter(p => p.module === 'daraz').length;
+    const shopifyProducts = products.filter(p => p.module === 'shopify').length;
+    const activeProducts = products.filter(p => p.status === 'active').length;
 
     console.log('📦 PRODUCTS:');
     console.log(`   Total Products: ${productCount}`);
@@ -45,10 +54,11 @@ const checkDatabase = async () => {
 
     // Show sample products if any
     if (productCount > 0) {
-      const sampleProducts = await Product.find().limit(5).select('name category price module status');
+      const sampleProducts = products.slice(0, 5);
       console.log('📋 Sample Products (first 5):');
       sampleProducts.forEach((product, index) => {
-        console.log(`   ${index + 1}. ${product.name} (${product.category}) - ${product.price} PKR [${product.module}]`);
+        const formattedProduct = Product.formatProduct(product);
+        console.log(`   ${index + 1}. ${formattedProduct.name} (${formattedProduct.category}) - ${formattedProduct.price} PKR [${formattedProduct.module}]`);
       });
       console.log('');
     }
@@ -69,11 +79,11 @@ const checkDatabase = async () => {
     console.error('❌ Error checking database:', error);
     process.exit(1);
   } finally {
-    mongoose.connection.close();
+    const { closeDB } = require('./config/database-supabase');
+    await closeDB();
     process.exit(0);
   }
 };
 
 // Run
 checkDatabase();
-

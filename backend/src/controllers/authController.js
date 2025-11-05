@@ -52,11 +52,11 @@ const register = async (req, res) => {
     }
 
     // Ensure database connection
-    const connectDB = require('../config/database');
+    const { connectDB } = require('../config/database-supabase');
     await connectDB();
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const existingUser = await User.findByEmail(email.toLowerCase());
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -81,26 +81,18 @@ const register = async (req, res) => {
       name: name.trim(),
       email: email.toLowerCase().trim(),
       passwordHash,
-      status: 'pending',
-      isActive: true
+      status: 'approved', // Users are approved by default - no admin approval required
+      isActive: true,
+      phone: phone?.trim() || null,
+      role,
+      module: module || null
     };
-    
-    // Add optional fields only if provided
-    if (phone && phone.trim()) {
-      userData.phone = phone.trim();
-    }
-    if (role && ['buyer', 'seller', 'admin'].includes(role)) {
-      userData.role = role;
-    }
-    if (module && ['daraz', 'shopify'].includes(module)) {
-      userData.module = module;
-    }
 
     console.log('📝 User data to save:', { ...userData, passwordHash: '***' });
 
-    const user = new User(userData);
-    await user.save();
-    console.log('✅ User created successfully:', user._id, user.email);
+    const user = await User.create(userData);
+    const formattedUser = User.formatUser(user);
+    console.log('✅ User created successfully:', user.id, user.email);
 
     // Ensure JWT_SECRET is configured
     if (!process.env.JWT_SECRET) {
@@ -112,7 +104,7 @@ const register = async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id },
+      { userId: user.id },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
@@ -122,11 +114,11 @@ const register = async (req, res) => {
       message: 'User registered successfully',
       data: {
         user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          status: user.status
+          id: formattedUser.id,
+          name: formattedUser.name,
+          email: formattedUser.email,
+          role: formattedUser.role,
+          status: formattedUser.status
         },
         token
       }
@@ -142,10 +134,8 @@ const register = async (req, res) => {
     
     // Provide more specific error messages
     let errorMessage = 'Failed to register user';
-    if (error.code === 11000) {
+    if (error.code === '23505') { // PostgreSQL unique violation
       errorMessage = 'Email already exists';
-    } else if (error.name === 'ValidationError') {
-      errorMessage = error.message;
     } else if (error.message) {
       errorMessage = error.message;
     }
@@ -180,7 +170,7 @@ const login = async (req, res) => {
     }
 
     // Find user by email
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findByEmail(email.toLowerCase());
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -189,7 +179,7 @@ const login = async (req, res) => {
     }
 
     // Check if user is active
-    if (!user.isActive) {
+    if (!user.is_active) {
       return res.status(401).json({
         success: false,
         message: 'Account is deactivated'
@@ -197,7 +187,7 @@ const login = async (req, res) => {
     }
 
     // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
@@ -206,8 +196,7 @@ const login = async (req, res) => {
     }
 
     // Update last login
-    user.lastLogin = new Date();
-    await user.save();
+    await User.updateLastLogin(user.id);
 
     // Ensure JWT_SECRET is configured
     if (!process.env.JWT_SECRET) {
@@ -217,39 +206,31 @@ const login = async (req, res) => {
       });
     }
 
-          // Check if user is approved before allowing login
-          if (user.status !== 'approved' && user.role !== 'admin') {
-            return res.status(403).json({
-              success: false,
-              message: user.status === 'pending' 
-                ? 'Your account is pending admin approval. Please wait for approval before logging in.'
-                : user.status === 'rejected'
-                ? 'Your account has been rejected. Please contact support.'
-                : 'Access denied. Your account needs admin approval.'
-            });
-          }
+    const formattedUser = User.formatUser(user);
 
-          // Generate JWT token
-          const token = jwt.sign(
-            { userId: user._id },
-            process.env.JWT_SECRET,
-            { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-          );
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
 
-          res.json({
-            success: true,
-            message: 'Login successful',
-            data: {
-              user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                status: user.status
-              },
-              token
-            }
-          });
+    res.json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        user: {
+          id: formattedUser.id,
+          name: formattedUser.name,
+          email: formattedUser.email,
+          role: formattedUser.role,
+          status: formattedUser.status,
+          module: formattedUser.module,
+          phone: formattedUser.phone
+        },
+        token
+      }
+    });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({
@@ -263,19 +244,27 @@ const login = async (req, res) => {
 // Get current user profile
 const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-passwordHash');
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
+    const formattedUser = User.formatUser(user);
     
     res.json({
       success: true,
       data: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-        module: user.module,
-        phone: user.phone,
-        lastLogin: user.lastLogin
+        id: formattedUser.id,
+        name: formattedUser.name,
+        email: formattedUser.email,
+        role: formattedUser.role,
+        status: formattedUser.status,
+        module: formattedUser.module,
+        phone: formattedUser.phone,
+        lastLogin: formattedUser.lastLogin
       }
     });
   } catch (error) {
@@ -299,23 +288,27 @@ const updateProfile = async (req, res) => {
     if (phone) updateData.phone = phone;
     if (module) updateData.module = module;
 
-    const user = await User.findByIdAndUpdate(
-      userId,
-      updateData,
-      { new: true, select: '-passwordHash' }
-    );
+    const user = await User.update(userId, updateData);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const formattedUser = User.formatUser(user);
 
     res.json({
       success: true,
       message: 'Profile updated successfully',
       data: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-        module: user.module,
-        phone: user.phone
+        id: formattedUser.id,
+        name: formattedUser.name,
+        email: formattedUser.email,
+        role: formattedUser.role,
+        status: formattedUser.status,
+        module: formattedUser.module,
+        phone: formattedUser.phone
       }
     });
   } catch (error) {

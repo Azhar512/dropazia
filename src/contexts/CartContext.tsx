@@ -23,14 +23,39 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Load cart from database
+  // Load cart from database or localStorage
   const loadCart = async () => {
-    if (!user) return;
+    if (!user) {
+      // Load from localStorage for anonymous users
+      const anonymousCart = JSON.parse(localStorage.getItem('anonymousCart') || '[]');
+      setCartItems(anonymousCart);
+      return;
+    }
     
     try {
       setLoading(true);
       const response = await ApiService.getCart();
-      setCartItems(response.data || []);
+      const serverCart = response.data || [];
+      
+      // If there's anonymous cart data, merge it before clearing
+      const anonymousCart = JSON.parse(localStorage.getItem('anonymousCart') || '[]');
+      if (anonymousCart.length > 0) {
+        // Merge anonymous cart with server cart
+        for (const item of anonymousCart) {
+          const existingItem = serverCart.find((si: any) => si.product_id === item.product_id);
+          if (existingItem) {
+            // Update quantity if product exists
+            await ApiService.updateCartItem(item.product_id, existingItem.quantity + item.quantity);
+          } else {
+            // Add new item
+            await ApiService.addToCart(item.product_id, item.quantity);
+          }
+        }
+        localStorage.removeItem('anonymousCart');
+      }
+      
+      const updatedResponse = await ApiService.getCart();
+      setCartItems(updatedResponse.data || []);
     } catch (error) {
       console.error('Error loading cart:', error);
     } finally {
@@ -44,8 +69,27 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
   const addToCart = async (product: Product, quantity: number = 1) => {
+    // Allow anonymous users to add to cart (will be stored in localStorage)
+    // Cart will sync to database when user logs in
     if (!user) {
-      alert('Please login to add items to cart');
+      // Store in localStorage for anonymous users
+      const anonymousCart = JSON.parse(localStorage.getItem('anonymousCart') || '[]');
+      const existingItem = anonymousCart.find((item: any) => item.product_id === product.id);
+      
+      if (existingItem) {
+        existingItem.quantity += quantity;
+      } else {
+        anonymousCart.push({
+          product_id: product.id,
+          productId: product.id,
+          quantity,
+          price: product.price,
+          name: product.name
+        });
+      }
+      
+      localStorage.setItem('anonymousCart', JSON.stringify(anonymousCart));
+      setCartItems(anonymousCart);
       return;
     }
 
@@ -62,6 +106,15 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const removeFromCart = async (productId: string) => {
+    if (!user) {
+      // Remove from localStorage for anonymous users
+      const anonymousCart = JSON.parse(localStorage.getItem('anonymousCart') || '[]');
+      const updatedCart = anonymousCart.filter((item: any) => item.product_id !== productId);
+      localStorage.setItem('anonymousCart', JSON.stringify(updatedCart));
+      setCartItems(updatedCart);
+      return;
+    }
+    
     try {
       await ApiService.removeFromCart(productId);
       await loadCart();
@@ -76,6 +129,18 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    if (!user) {
+      // Update in localStorage for anonymous users
+      const anonymousCart = JSON.parse(localStorage.getItem('anonymousCart') || '[]');
+      const item = anonymousCart.find((item: any) => item.product_id === productId);
+      if (item) {
+        item.quantity = quantity;
+        localStorage.setItem('anonymousCart', JSON.stringify(anonymousCart));
+        setCartItems(anonymousCart);
+      }
+      return;
+    }
+
     try {
       await ApiService.updateCartItem(productId, quantity);
       await loadCart();
@@ -85,6 +150,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const clearCart = async () => {
+    if (!user) {
+      // Clear localStorage for anonymous users
+      localStorage.removeItem('anonymousCart');
+      setCartItems([]);
+      return;
+    }
+    
     try {
       await ApiService.clearCart();
       setCartItems([]);

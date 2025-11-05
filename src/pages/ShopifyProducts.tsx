@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Search, Filter, ShoppingCart, Download, Eye, Heart, Copy, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Search, Filter, ShoppingCart, Download, Eye, Heart, Copy, Check, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProducts } from '@/contexts/ProductContext';
@@ -16,6 +16,7 @@ import UserSidebar from '@/components/UserSidebar';
 import WhatsAppButton from '@/components/WhatsAppButton';
 import { WishlistButton } from '@/components/WishlistButton';
 import { CATEGORIES } from '@/lib/categories';
+import { getCategoryImage } from '@/lib/categoryImages';
 import { Product } from '@/types/product';
 import { toast } from 'sonner';
 
@@ -30,34 +31,12 @@ const ShopifyProducts = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Check if user is approved - block access if pending or rejected
-  React.useEffect(() => {
-    if (user) {
-      if (user.status === 'pending') {
-        toast.error('Your account is pending approval. Please wait for admin approval.');
-        navigate('/user-dashboard');
-        return;
-      }
-      if (user.status === 'rejected') {
-        toast.error('Your account has been rejected. Please contact support.');
-        navigate('/user-dashboard');
-        return;
-      }
-      // Only allow approved users or admins
-      if (user.status !== 'approved' && user.role !== 'admin') {
-        toast.error('Access denied. Your account needs admin approval.');
-        navigate('/user-dashboard');
-        return;
-      }
-    }
-  }, [user, navigate]);
-
   // Get Shopify products from shared context
   const shopifyProducts = getProductsByModule('shopify');
 
-  // Refresh wishlist on mount (only for approved users)
+  // Refresh wishlist on mount (for logged-in users)
   React.useEffect(() => {
-    if (user && user.status === 'approved') {
+    if (user) {
       refreshWishlist('shopify');
     }
   }, [user, refreshWishlist]);
@@ -109,7 +88,7 @@ const ShopifyProducts = () => {
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100">
       <UserSidebar module="shopify" />
       <WhatsAppButton phoneNumber="+923256045679" message="Hello! I need help with Shopify products." />
-      <div className="container mx-auto px-4 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <Button 
@@ -147,8 +126,8 @@ const ShopifyProducts = () => {
           <p className="text-muted-foreground">Explore our curated collection from Shopify</p>
         </div>
 
-        {/* Filters */}
-        <Card className="p-4 mb-8">
+        {/* Search Bar */}
+        <Card className="p-4 mb-6">
           <div className="flex items-center gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -159,169 +138,170 @@ const ShopifyProducts = () => {
                 className="pl-10"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-muted-foreground" />
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {CATEGORIES.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <Badge variant="outline" className="px-3 py-1">
               {filteredProducts.length} products
             </Badge>
           </div>
         </Card>
 
-        {/* Products Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {/* Categories Section - Horizontal Scrollable - Full Width */}
+        <div className="mb-8 relative -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
+          {/* Left Arrow */}
+          <button
+            onClick={() => {
+              const container = document.getElementById('shopify-categories-scroll');
+              if (container) {
+                container.scrollBy({ left: -300, behavior: 'smooth' });
+              }
+            }}
+            className="absolute left-0 sm:left-4 lg:left-8 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
+            aria-label="Scroll left"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
+
+          {/* Categories Scroll Container */}
+          <div
+            id="shopify-categories-scroll"
+            className="flex gap-6 overflow-x-auto scrollbar-hide pb-4 pl-12 pr-12"
+            style={{
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
+          >
+            {/* All Categories Option */}
+            <div
+              className="flex flex-col items-center cursor-pointer group min-w-[120px]"
+              onClick={() => setSelectedCategory('all')}
+            >
+              <div className={`w-24 h-24 rounded-full bg-gray-100 shadow-md group-hover:shadow-xl transition-all duration-300 group-hover:scale-105 overflow-hidden mb-3 flex items-center justify-center ${selectedCategory === 'all' ? 'ring-4 ring-green-500' : ''}`}>
+                <div className="text-4xl font-bold text-green-500">All</div>
+              </div>
+              <h3 className={`text-sm font-medium text-center capitalize leading-tight px-2 ${selectedCategory === 'all' ? 'text-green-500 font-semibold' : 'text-gray-700 group-hover:text-green-500'} transition-colors`}>
+                All Categories
+              </h3>
+            </div>
+
+            {CATEGORIES.map((category) => (
+              <div
+                key={category}
+                className="flex flex-col items-center cursor-pointer group min-w-[120px]"
+                onClick={() => setSelectedCategory(category)}
+              >
+                {/* Circular Image Container */}
+                <div className={`w-24 h-24 rounded-full bg-gray-100 shadow-md group-hover:shadow-xl transition-all duration-300 group-hover:scale-105 overflow-hidden mb-3 flex items-center justify-center ${selectedCategory === category ? 'ring-4 ring-green-500' : ''}`}>
+                  <img 
+                    src={getCategoryImage(category)}
+                    alt={category}
+                    className="w-full h-full object-cover rounded-full"
+                    loading="lazy"
+                  />
+                </div>
+                
+                {/* Category Label */}
+                <h3 className={`text-sm font-medium text-center capitalize leading-tight px-2 ${selectedCategory === category ? 'text-green-500 font-semibold' : 'text-gray-700 group-hover:text-green-500'} transition-colors`}>
+                  {category}
+                </h3>
+              </div>
+            ))}
+          </div>
+
+          {/* Right Arrow */}
+          <button
+            onClick={() => {
+              const container = document.getElementById('shopify-categories-scroll');
+              if (container) {
+                container.scrollBy({ left: 300, behavior: 'smooth' });
+              }
+            }}
+            className="absolute right-0 sm:right-4 lg:right-8 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
+            aria-label="Scroll right"
+          >
+            <ArrowRight className="w-5 h-5 text-gray-600" />
+          </button>
+        </div>
+
+        {/* Hide scrollbar for webkit browsers */}
+        <style>{`
+          #shopify-categories-scroll::-webkit-scrollbar {
+            display: none;
+          }
+        `}</style>
+
+        {/* Products Grid - Full Width - Markaz Style */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4">
           {filteredProducts.map((product) => (
-            <Card key={product.id} className="group overflow-hidden hover:shadow-lg transition-all duration-300">
-              <div className="aspect-square overflow-hidden relative">
+            <Card 
+              key={product.id} 
+              className="group overflow-hidden hover:shadow-md transition-all duration-200 cursor-pointer border border-gray-200"
+              onClick={() => navigate(`/product/${product.id}`)}
+            >
+              {/* Product Image */}
+              <div className="aspect-square overflow-hidden relative bg-gray-50">
                 <img 
                   src={product.images[0]?.url || '/placeholder.svg'} 
                   alt={product.images[0]?.alt || product.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                 />
-                <div className="absolute top-2 right-2">
+                <div className="absolute top-1.5 right-1.5" onClick={(e) => e.stopPropagation()}>
                   <WishlistButton productId={product.id} module="shopify" />
                 </div>
               </div>
               
-              <div className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-lg line-clamp-2 pr-2">{product.name}</h3>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => copyProductName(product.name, product.id)}
-                      className="h-8 w-8 p-0"
-                    >
-                      {copiedId === product.id ? (
-                        <Check className="w-4 h-4 text-green-600" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </Button>
-                    <Badge variant="outline" className="shrink-0">
-                      {product.category}
-                    </Badge>
-                  </div>
-                </div>
+              {/* Product Info - Compact */}
+              <div className="p-2.5 sm:p-3">
+                {/* Product Name */}
+                <h3 className="font-medium text-xs sm:text-sm line-clamp-2 mb-1.5 text-gray-900 leading-tight">
+                  {product.name}
+                </h3>
                 
-                <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                  {product.description}
-                </p>
-                
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-2xl font-bold text-secondary">
-                    ₨{product.price.toLocaleString()}
+                {/* Price */}
+                <div className="flex items-center justify-between">
+                  <span className="text-base sm:text-lg font-bold text-green-500">
+                    Rs{product.price.toLocaleString()}
                   </span>
-                  <span className="text-sm text-muted-foreground">
-                    Stock: {product.stock}
-                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      copyProductName(product.name, product.id);
+                    }}
+                    className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    {copiedId === product.id ? (
+                      <Check className="w-3 h-3 text-green-600" />
+                    ) : (
+                      <Copy className="w-3 h-3" />
+                    )}
+                  </Button>
                 </div>
 
-                <div className="flex items-center gap-2 mb-3">
+                {/* Action Buttons - Resell Now for Shopify */}
+                <div className="flex gap-1.5 mt-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="flex-1 h-7 text-xs border-green-300 hover:bg-green-50"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/resell/${product.id}`);
+                    }}
+                  >
+                    <TrendingUp className="w-3 h-3 mr-1" />
+                    Resell
+                  </Button>
                   <Button 
                     size="sm" 
                     variant="secondary"
-                    className="flex-1"
-                    onClick={() => handleAddToCart(product)}
+                    className="flex-1 h-7 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAddToCart(product);
+                    }}
                   >
-                    <ShoppingCart className="w-4 h-4 mr-1" />
-                    Add to Cart
+                    <ShoppingCart className="w-3 h-3" />
                   </Button>
-                  
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => setSelectedProduct(product)}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
-                      <DialogHeader>
-                        <DialogTitle>{product.name}</DialogTitle>
-                        <DialogDescription>
-                          {product.description}
-                        </DialogDescription>
-                      </DialogHeader>
-                      
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <img 
-                              src={product.images[0]?.url || '/placeholder.svg'} 
-                              alt={product.images[0]?.alt || product.name}
-                              className="w-full h-48 object-cover rounded"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-2xl font-bold">₨{product.price.toLocaleString()}</span>
-                              <Badge variant="outline">{product.category}</Badge>
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              Stock: {product.stock} available
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Download Options */}
-                        <div className="space-y-2">
-                          <h4 className="font-medium">Downloads</h4>
-                          <div className="flex gap-2">
-                            {product.images.map((image) => (
-                              <Button
-                                key={image.id}
-                                size="sm"
-                                variant="outline"
-                                onClick={() => downloadImage(image)}
-                              >
-                                <Download className="w-4 h-4 mr-1" />
-                                PNG
-                              </Button>
-                            ))}
-                            {product.documents.map((doc) => (
-                              <Button
-                                key={doc.id}
-                                size="sm"
-                                variant="outline"
-                                onClick={() => downloadDocument(doc)}
-                              >
-                                <Download className="w-4 h-4 mr-1" />
-                                PDF
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <Button 
-                          variant="secondary"
-                          className="w-full"
-                          onClick={() => handleAddToCart(product)}
-                        >
-                          <ShoppingCart className="w-4 h-4 mr-2" />
-                          Add to Cart
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
                 </div>
               </div>
             </Card>

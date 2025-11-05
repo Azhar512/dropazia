@@ -1,73 +1,212 @@
-# Welcome to your Lovable project
+# ShopDaraz Hub
 
-## Project info
+A modern B2B e-commerce management platform for sellers managing products across **Daraz** and **Shopify** marketplaces.
 
-**URL**: https://lovable.dev/projects/de68fca7-9409-45fb-b5a4-89fb7802ed9e
+## 🚀 Features
 
-## How can I edit this code?
+- **Multi-Module Support**: Manage products for both Daraz and Shopify
+- **User Management**: Role-based access (buyer, seller, admin) with approval system
+- **Product Management**: Complete CRUD operations with images and documents
+- **Shopping Cart**: Persistent cart with database storage
+- **Order Processing**: Full order lifecycle management
+- **Analytics & Profits**: Track sales and profits per module
+- **Returns Management**: Handle product returns and refunds
+- **Wishlist**: Save products for later
+- **Modern UI**: Built with React, TypeScript, and Tailwind CSS
 
-There are several ways of editing your application.
+## 🛠️ Tech Stack
 
-**Use Lovable**
+### Frontend
+- **React 18** with TypeScript
+- **Vite** for fast development
+- **Tailwind CSS** + **shadcn/ui** components
+- **React Router** for navigation
+- **React Query** for data fetching
+- **React Hook Form** + **Zod** for validation
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/de68fca7-9409-45fb-b5a4-89fb7802ed9e) and start prompting.
+### Backend
+- **Node.js** + **Express**
+- **Supabase PostgreSQL** database
+- **JWT** authentication
+- **bcryptjs** for password hashing
+- Security middleware (Helmet, CORS, rate limiting)
 
-Changes made via Lovable will be committed automatically to this repo.
+## 📋 Prerequisites
 
-**Use your preferred IDE**
+- Node.js 18+ and npm
+- Supabase account (for database)
+- Git
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🚀 Quick Start
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### 1. Clone the repository
 
-Follow these steps:
+```bash
+git clone <your-repo-url>
+cd shopdaraz-hub-main
+```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### 2. Install dependencies
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+```bash
+# Install frontend dependencies
+npm install
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Install backend dependencies
+cd backend
+npm install
+cd ..
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+### 3. Environment Setup
+
+#### Backend Environment (`backend/.env`)
+
+```env
+DATABASE_URL=postgresql://user:password@host:port/database
+JWT_SECRET=your-super-secret-jwt-key-minimum-32-characters
+NODE_ENV=production
+PORT=5000
+FRONTEND_URL=http://localhost:3000
+```
+
+#### Frontend Environment (`.env` in root)
+
+```env
+VITE_API_URL=http://localhost:5000
+```
+
+**See [ENV_SETUP.md](./ENV_SETUP.md) for detailed environment variable setup.**
+
+### 4. Database Setup
+
+1. Create a Supabase project
+2. Run the SQL schema from `backend/database/supabase-schema.sql` in Supabase SQL Editor
+3. Update `DATABASE_URL` in `backend/.env` with your Supabase connection string
+
+### 5. Create Admin User
+
+```bash
+cd backend
+npm run create-admin
+```
+
+This creates an admin user:
+- **Email**: `admin@shopdaraz.com`
+- **Password**: `admin123`
+
+⚠️ **Change the password immediately after first login!**
+
+### 6. Start Development Servers
+
+#### Backend (Terminal 1)
+```bash
+cd backend
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+#### Frontend (Terminal 2)
+```bash
+npm run dev
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+The application will be available at:
+- **Frontend**: http://localhost:3000 (or Vite's default port)
+- **Backend API**: http://localhost:5000
 
-**Use GitHub Codespaces**
+## 📁 Project Structure
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```
+shopdaraz-hub-main/
+├── backend/              # Backend API
+│   ├── src/
+│   │   ├── config/       # Database configuration
+│   │   ├── controllers/  # API controllers
+│   │   ├── models/       # Database models (PostgreSQL)
+│   │   ├── routes/       # Express routes
+│   │   └── middleware/   # Auth middleware
+│   └── database/         # SQL schemas
+├── src/                  # Frontend React app
+│   ├── components/       # React components
+│   ├── contexts/         # React contexts
+│   ├── pages/            # Page components
+│   ├── services/         # API service layer
+│   └── types/            # TypeScript types
+└── public/               # Static assets
+```
 
-## What technologies are used for this project?
+## 🔧 Available Scripts
 
-This project is built with:
+### Frontend
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Backend
+- `npm run dev` - Start development server (nodemon)
+- `npm start` - Start production server
+- `npm run create-admin` - Create admin user
+- `npm run check-db` - Check database status
 
-## How can I deploy this project?
+## 🔐 Security
 
-Simply open [Lovable](https://lovable.dev/projects/de68fca7-9409-45fb-b5a4-89fb7802ed9e) and click on Share -> Publish.
+- **JWT Authentication**: Secure token-based auth
+- **Password Hashing**: bcrypt with salt rounds
+- **Rate Limiting**: 100 requests per 15 minutes per IP
+- **CORS**: Configured for allowed origins
+- **Helmet**: Security headers
+- **Environment Variables**: All secrets in `.env` files
 
-## Can I connect a custom domain to my Lovable project?
+## 📚 Documentation
 
-Yes, you can!
+- **[ENV_SETUP.md](./ENV_SETUP.md)** - Environment variables setup
+- **[PROJECT_CLEANUP_SUMMARY.md](./PROJECT_CLEANUP_SUMMARY.md)** - Recent migration and cleanup details
+- **[SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md)** - Detailed setup guide
+- **[LOCAL_SETUP.md](./LOCAL_SETUP.md)** - Local development setup
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## 🚢 Deployment
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+### Backend (Vercel)
+- Deploys automatically from GitHub
+- Configure environment variables in Vercel dashboard
+- Set `FRONTEND_URL` to your production domain
+
+### Frontend (Hostinger/Vercel)
+- Build with `npm run build`
+- Upload `dist/` folder contents
+- Configure `.env` with production API URL
+
+**See deployment-specific guides in the repository for detailed instructions.**
+
+## 🐛 Troubleshooting
+
+### Database Connection Issues
+- Verify `DATABASE_URL` in `backend/.env`
+- Check Supabase project is active
+- Ensure connection string uses correct credentials
+
+### Authentication Issues
+- Verify `JWT_SECRET` is set in `backend/.env`
+- Check token expiration
+- Clear browser cache/localStorage
+
+### CORS Errors
+- Update `FRONTEND_URL` in `backend/.env`
+- Include all variants (with/without www)
+- Restart backend server after changes
+
+## 📝 License
+
+[Your License Here]
+
+## 🤝 Contributing
+
+[Your Contributing Guidelines Here]
+
+## 📧 Support
+
+For issues and questions, please open an issue on GitHub.
+
+---
+
+**Built with ❤️ using modern web technologies**

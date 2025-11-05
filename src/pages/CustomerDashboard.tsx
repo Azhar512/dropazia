@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Package, ShoppingBag, MapPin, Calendar, CreditCard, Eye } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import { ArrowLeft, Package, ShoppingBag, MapPin, Calendar, CreditCard, Eye, User, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProducts } from '@/contexts/ProductContext';
@@ -11,7 +13,21 @@ import { Order } from '@/types/product';
 const CustomerDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { getOrdersByCustomer } = useProducts();
+  const { getOrdersByCustomer, refreshOrders, products } = useProducts();
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  // Refresh orders when component mounts or user changes
+  useEffect(() => {
+    if (user) {
+      refreshOrders();
+    }
+  }, [user, refreshOrders]);
+
+  // Get full product details for order items
+  const getProductDetails = (productId: string) => {
+    return products.find(p => p.id === productId);
+  };
 
   if (!user) {
     return (
@@ -57,11 +73,7 @@ const CustomerDashboard = () => {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-PK', {
-      style: 'currency',
-      currency: 'PKR',
-      minimumFractionDigits: 0,
-    }).format(amount);
+    return `Rs ${amount.toLocaleString()}`;
   };
 
   const formatDate = (dateString: string) => {
@@ -238,10 +250,207 @@ const CustomerDashboard = () => {
                   </div>
 
                   <div className="flex flex-col gap-2 lg:items-end">
-                    <Button variant="outline" size="sm">
-                      <Eye className="w-4 h-4 mr-2" />
-                      View Details
-                    </Button>
+                    <Dialog 
+                      open={isDialogOpen && selectedOrder?.id === order.id} 
+                      onOpenChange={(open) => {
+                        if (!open) {
+                          setIsDialogOpen(false);
+                          setSelectedOrder(null);
+                        }
+                      }}
+                    >
+                      <DialogTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setSelectedOrder(order);
+                            setIsDialogOpen(true);
+                          }}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          View Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Order Details - {order.id}</DialogTitle>
+                          <DialogDescription>
+                            Placed on {formatDate(order.createdAt)}
+                          </DialogDescription>
+                        </DialogHeader>
+                        
+                        <div className="space-y-6">
+                          {/* Order Status */}
+                          <div className="flex items-center gap-4">
+                            <Badge className={getStatusColor(order.status)}>
+                              {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                            </Badge>
+                            <Badge className={getPaymentStatusColor(order.paymentStatus)}>
+                              {order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
+                            </Badge>
+                            <Badge variant="outline" className="capitalize">
+                              {order.module}
+                            </Badge>
+                          </div>
+
+                          <Separator />
+
+                          {/* Customer Information */}
+                          <div>
+                            <h3 className="font-semibold mb-3 flex items-center gap-2">
+                              <User className="w-4 h-4" />
+                              Customer Information
+                            </h3>
+                            <div className="space-y-2 text-sm">
+                              <p><strong>Name:</strong> {order.customerName}</p>
+                              <p className="flex items-center gap-2">
+                                <Mail className="w-4 h-4" />
+                                <strong>Email:</strong> {order.customerEmail}
+                              </p>
+                            </div>
+                          </div>
+
+                          <Separator />
+
+                          {/* Order Items with Product Details */}
+                          <div>
+                            <h3 className="font-semibold mb-3 flex items-center gap-2">
+                              <Package className="w-4 h-4" />
+                              Order Items ({order.items.length})
+                            </h3>
+                            <div className="space-y-4">
+                              {order.items.map((item, index) => {
+                                const productDetails = getProductDetails(item.productId);
+                                return (
+                                  <Card key={index} className="p-4">
+                                    <div className="flex gap-4 mb-4">
+                                      {item.productImage && (
+                                        <img
+                                          src={item.productImage}
+                                          alt={item.productName}
+                                          className="w-24 h-24 object-cover rounded-lg"
+                                        />
+                                      )}
+                                      <div className="flex-1">
+                                        <h4 className="font-bold text-lg mb-2">{item.productName}</h4>
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <Badge variant="outline" className="capitalize text-xs">
+                                            {productDetails?.category || 'N/A'}
+                                          </Badge>
+                                          <Badge variant="outline" className="text-xs">
+                                            Qty: {item.quantity}
+                                          </Badge>
+                                        </div>
+                                        <p className="text-sm text-muted-foreground mb-2">
+                                          {productDetails?.description || 'No description available'}
+                                        </p>
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-sm text-muted-foreground">
+                                            Price: {formatCurrency(item.price)} × {item.quantity}
+                                          </span>
+                                          <span className="font-bold text-lg">{formatCurrency(item.totalPrice)}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Product Specifications */}
+                                    {productDetails?.specifications && productDetails.specifications.length > 0 && (
+                                      <div className="mt-4 pt-4 border-t">
+                                        <h5 className="font-semibold text-sm mb-2">Specifications:</h5>
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                          {productDetails.specifications.map((spec, specIndex) => (
+                                            <div key={specIndex} className="flex justify-between">
+                                              <span className="text-muted-foreground">{spec.name}:</span>
+                                              <span className="font-medium">{spec.value}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Product Images Gallery */}
+                                    {productDetails?.images && productDetails.images.length > 0 && (
+                                      <div className="mt-4 pt-4 border-t">
+                                        <h5 className="font-semibold text-sm mb-2">Product Images:</h5>
+                                        <div className="grid grid-cols-4 gap-2">
+                                          {productDetails.images.slice(0, 4).map((image, imgIndex) => (
+                                            <img
+                                              key={imgIndex}
+                                              src={image.url}
+                                              alt={image.alt || item.productName}
+                                              className="w-full h-20 object-cover rounded border"
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </Card>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <Separator />
+
+                          {/* Order Summary */}
+                          <div>
+                            <h3 className="font-semibold mb-3">Order Summary</h3>
+                            <div className="space-y-2">
+                              <div className="flex justify-between">
+                                <span>Subtotal:</span>
+                                <span className="font-semibold">{formatCurrency(order.totalAmount - (order.module === 'daraz' ? 50 : 0))}</span>
+                              </div>
+                              {order.module === 'daraz' && (
+                                <div className="flex justify-between">
+                                  <span>Delivery Charges:</span>
+                                  <span>Rs 50</span>
+                                </div>
+                              )}
+                              {order.paymentAmount && (
+                                <div className="flex justify-between">
+                                  <span>Payment Amount:</span>
+                                  <span className="font-semibold text-green-600">{formatCurrency(order.paymentAmount)}</span>
+                                </div>
+                              )}
+                              <Separator />
+                              <div className="flex justify-between text-lg font-bold">
+                                <span>Total Amount:</span>
+                                <span className="text-green-600">{formatCurrency(order.totalAmount)}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <Separator />
+
+                          {/* Shipping Address */}
+                          <div>
+                            <h3 className="font-semibold mb-3 flex items-center gap-2">
+                              <MapPin className="w-4 h-4" />
+                              Shipping Address
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              {order.shippingAddress.street}, {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zipCode}, {order.shippingAddress.country}
+                            </p>
+                          </div>
+
+                          {/* Order Dates */}
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4" />
+                              <span>Created: {formatDate(order.createdAt)}</span>
+                            </div>
+                            {order.updatedAt !== order.createdAt && (
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4" />
+                                <span>Updated: {formatDate(order.updatedAt)}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                     {order.status === 'delivered' && (
                       <Button variant="outline" size="sm">
                         Reorder

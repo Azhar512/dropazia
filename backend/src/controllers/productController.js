@@ -1,12 +1,11 @@
 const Product = require('../models/Product');
-const mongoose = require('mongoose');
-
-const connectDB = require('../config/database');
+const { connectDB } = require('../config/database-supabase');
+const User = require('../models/User');
 
 // Get all products
 const getAllProducts = async (req, res) => {
   try {
-    // Ensure database is connected (important for serverless)
+    // Ensure database is connected
     try {
       await connectDB();
     } catch (dbError) {
@@ -20,53 +19,39 @@ const getAllProducts = async (req, res) => {
 
     const { module, status, category } = req.query;
     
-    let filter = {};
-    if (module) filter.module = module;
-    if (status) filter.status = status;
-    if (category) filter.category = category;
+    const filters = {};
+    if (module) filters.module = module;
+    if (status) filters.status = status;
+    if (category) filters.category = category;
 
-    // Use aggregation pipeline to allow disk use for large sorts
-    // This prevents MongoDB 32MB in-memory sort limit error
-    const products = await Product.aggregate([
-      { $match: filter },
-      { $sort: { createdAt: -1 } },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'createdBy',
-          foreignField: '_id',
-          as: 'createdByData',
-          pipeline: [{ $project: { name: 1, email: 1 } }]
+    const products = await Product.find(filters);
+    
+    // Format products and populate createdBy
+    const formattedProducts = await Promise.all(products.map(async (row) => {
+      const product = Product.formatProduct(row);
+      
+      // Populate createdBy if needed
+      if (product.createdBy) {
+        const creator = await User.findById(product.createdBy);
+        if (creator) {
+          product.createdBy = {
+            id: creator.id,
+            name: creator.name,
+            email: creator.email
+          };
         }
-      },
-      {
-        $addFields: {
-          createdBy: {
-            $cond: {
-              if: { $gt: [{ $size: '$createdByData' }, 0] },
-              then: { $arrayElemAt: ['$createdByData', 0] },
-              else: null
-            }
-          }
-        }
-      },
-      { $project: { createdByData: 0 } }
-    ]).allowDiskUse(true); // CRITICAL: Allows sorting large datasets
-
-    // Clean up products - set createdBy to null if populate failed
-    const cleanedProducts = products.map(product => ({
-      ...product,
-      createdBy: product.createdBy || null
+      }
+      
+      return product;
     }));
 
     res.json({
       success: true,
-      data: cleanedProducts,
-      count: cleanedProducts.length
+      data: formattedProducts,
+      count: formattedProducts.length
     });
   } catch (error) {
     console.error('❌ Get products error:', error);
-    console.error('❌ Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch products',
@@ -79,7 +64,7 @@ const getAllProducts = async (req, res) => {
 // Get product by ID
 const getProductById = async (req, res) => {
   try {
-    // Ensure database is connected (important for serverless)
+    // Ensure database is connected
     try {
       await connectDB();
     } catch (dbError) {
@@ -92,27 +77,32 @@ const getProductById = async (req, res) => {
 
     const { id } = req.params;
     
-    const product = await Product.findById(id)
-      .populate({
-        path: 'createdBy',
-        select: 'name email',
-        strictPopulate: false
-      })
-      .lean();
+    const row = await Product.findById(id);
 
-    if (!product) {
+    if (!row) {
       return res.status(404).json({
         success: false,
         message: 'Product not found'
       });
     }
 
+    const product = Product.formatProduct(row);
+    
+    // Populate createdBy if needed
+    if (product.createdBy) {
+      const creator = await User.findById(product.createdBy);
+      if (creator) {
+        product.createdBy = {
+          id: creator.id,
+          name: creator.name,
+          email: creator.email
+        };
+      }
+    }
+
     res.json({
       success: true,
-      data: {
-        ...product,
-        createdBy: product.createdBy || null
-      }
+      data: product
     });
   } catch (error) {
     console.error('❌ Get product error:', error);
@@ -127,7 +117,7 @@ const getProductById = async (req, res) => {
 // Create new product
 const createProduct = async (req, res) => {
   try {
-    // Ensure database is connected (important for serverless)
+    // Ensure database is connected
     try {
       await connectDB();
     } catch (dbError) {
@@ -137,6 +127,7 @@ const createProduct = async (req, res) => {
         message: 'Database connection not available'
       });
     }
+    
     const {
       name,
       description,
@@ -169,12 +160,11 @@ const createProduct = async (req, res) => {
       });
     }
 
-    // Convert user ID string to ObjectId
-    const createdByUserId = new mongoose.Types.ObjectId(req.user.id);
-
     // Map images from frontend format to backend format
     const mappedImages = (images || []).map((img, index) => ({
+      id: img.id || index,
       url: img.url,
+      alt: img.alt || img.altText || '',
       altText: img.alt || img.altText || '',
       isPrimary: img.isPrimary !== undefined ? img.isPrimary : index === 0,
       type: img.type || 'jpg',
@@ -182,61 +172,50 @@ const createProduct = async (req, res) => {
     }));
 
     // Map documents from frontend format to backend format
-    const mappedDocuments = (documents || []).map((doc) => ({
+    const mappedDocuments = (documents || []).map((doc, index) => ({
+      id: doc.id || index,
       name: doc.name,
       url: doc.url,
-      type: doc.type,
+      type: doc.type || 'pdf',
       sizeBytes: doc.size || doc.sizeBytes || 0
     }));
 
     // Map specifications
     const mappedSpecifications = (specifications || []).map((spec, index) => ({
+      id: spec.id || index,
       name: spec.name,
       value: spec.value,
       sortOrder: spec.sortOrder || index
     }));
 
     // Create product
-    const product = new Product({
+    const product = await Product.create({
       name,
       description: description || '',
       category,
-      price,
-      stock: stock || 0,
+      price: parseFloat(price),
+      profit: parseFloat(req.body.profit || 0),
+      stock: parseInt(stock || 0),
       module,
       status: status || 'active',
       sku,
-      weight,
+      weight: weight ? parseFloat(weight) : null,
       dimensions,
       images: mappedImages,
       documents: mappedDocuments,
       specifications: mappedSpecifications,
-      createdBy: createdByUserId // Use authenticated user's ID
+      createdBy: req.user.id
     });
 
-    await product.save();
+    const formattedProduct = Product.formatProduct(product);
 
     res.status(201).json({
       success: true,
       message: 'Product created successfully',
-      data: product
+      data: formattedProduct
     });
   } catch (error) {
     console.error('❌ Create product error:', error);
-    console.error('❌ Error details:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-      user: req.user?.id,
-      productData: {
-        name,
-        category,
-        price,
-        module
-      }
-    });
-    
-    // Return more detailed error for debugging
     res.status(500).json({
       success: false,
       message: 'Failed to create product',
@@ -261,19 +240,69 @@ const updateProduct = async (req, res) => {
     }
 
     // Remove fields that shouldn't be updated
-    const { createdBy, _id, __v, ...allowedUpdates } = updates;
+    const { createdBy, id: _id, ...allowedUpdates } = updates;
 
-    const product = await Product.findByIdAndUpdate(
-      id,
-      { ...allowedUpdates, updatedAt: new Date() },
-      { new: true, runValidators: true }
-    ).populate('createdBy', 'name email');
+    // Handle images, documents, specifications mapping if provided
+    if (updates.images) {
+      allowedUpdates.images = updates.images.map((img, index) => ({
+        id: img.id || index,
+        url: img.url,
+        alt: img.alt || img.altText || '',
+        altText: img.alt || img.altText || '',
+        isPrimary: img.isPrimary !== undefined ? img.isPrimary : index === 0,
+        type: img.type || 'jpg',
+        sortOrder: img.sortOrder || index
+      }));
+    }
 
-    if (!product) {
+    if (updates.documents) {
+      allowedUpdates.documents = updates.documents.map((doc, index) => ({
+        id: doc.id || index,
+        name: doc.name,
+        url: doc.url,
+        type: doc.type || 'pdf',
+        sizeBytes: doc.size || doc.sizeBytes || 0
+      }));
+    }
+
+    if (updates.specifications) {
+      allowedUpdates.specifications = updates.specifications.map((spec, index) => ({
+        id: spec.id || index,
+        name: spec.name,
+        value: spec.value,
+        sortOrder: spec.sortOrder || index
+      }));
+    }
+
+    // Convert price and stock to numbers if provided
+    if (allowedUpdates.price !== undefined) {
+      allowedUpdates.price = parseFloat(allowedUpdates.price);
+    }
+    if (allowedUpdates.stock !== undefined) {
+      allowedUpdates.stock = parseInt(allowedUpdates.stock);
+    }
+
+    const row = await Product.update(id, allowedUpdates);
+
+    if (!row) {
       return res.status(404).json({
         success: false,
         message: 'Product not found'
       });
+    }
+
+    const product = Product.formatProduct(row);
+    
+    // Populate createdBy
+    if (product.createdBy) {
+      const creator = await User.findById(product.createdBy);
+      if (creator) {
+        product.createdBy = {
+          id: creator.id,
+          name: creator.name,
+          email: creator.email
+        };
+      }
     }
 
     res.json({
@@ -304,14 +333,7 @@ const deleteProduct = async (req, res) => {
       });
     }
 
-    const product = await Product.findByIdAndDelete(id);
-
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
-    }
+    await Product.delete(id);
 
     res.json({
       success: true,
@@ -330,7 +352,7 @@ const deleteProduct = async (req, res) => {
 // Get products by module
 const getProductsByModule = async (req, res) => {
   try {
-    // Ensure database is connected (important for serverless)
+    // Ensure database is connected
     try {
       await connectDB();
     } catch (dbError) {
@@ -344,42 +366,31 @@ const getProductsByModule = async (req, res) => {
     const { module } = req.params;
     const { status = 'active' } = req.query;
 
-    // Use aggregation pipeline to allow disk use for large sorts
-    const products = await Product.aggregate([
-      { $match: { module, status } },
-      { $sort: { createdAt: -1 } },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'createdBy',
-          foreignField: '_id',
-          as: 'createdByData',
-          pipeline: [{ $project: { name: 1, email: 1 } }]
+    const products = await Product.find({ module, status });
+    
+    // Format products
+    const formattedProducts = await Promise.all(products.map(async (row) => {
+      const product = Product.formatProduct(row);
+      
+      // Populate createdBy if needed
+      if (product.createdBy) {
+        const creator = await User.findById(product.createdBy);
+        if (creator) {
+          product.createdBy = {
+            id: creator.id,
+            name: creator.name,
+            email: creator.email
+          };
         }
-      },
-      {
-        $addFields: {
-          createdBy: {
-            $cond: {
-              if: { $gt: [{ $size: '$createdByData' }, 0] },
-              then: { $arrayElemAt: ['$createdByData', 0] },
-              else: null
-            }
-          }
-        }
-      },
-      { $project: { createdByData: 0 } }
-    ]).allowDiskUse(true); // CRITICAL: Allows sorting large datasets
-
-    const cleanedProducts = products.map(product => ({
-      ...product,
-      createdBy: product.createdBy || null
+      }
+      
+      return product;
     }));
 
     res.json({
       success: true,
-      data: cleanedProducts,
-      count: cleanedProducts.length
+      data: formattedProducts,
+      count: formattedProducts.length
     });
   } catch (error) {
     console.error('❌ Get products by module error:', error);

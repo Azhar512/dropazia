@@ -4,7 +4,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'buyer' | 'seller';
+  role: 'admin' | 'buyer' | 'seller' | 'super_admin';
   status: string;
 }
 
@@ -49,13 +49,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (response.ok) {
             const data = await response.json();
             if (data.success) {
-              setUser({
-                id: data.data.id,
-                name: data.data.name,
-                email: data.data.email,
-                role: data.data.role,
-                status: data.data.status
-              });
+              const userData = data.data.user || data.data;
+              const finalUser = {
+                id: userData.id,
+                name: userData.name,
+                email: userData.email,
+                role: userData.role,
+                status: userData.status
+              };
+              setUser(finalUser);
+              // Store role in localStorage for quick access
+              if (userData.role) {
+                localStorage.setItem('userRole', userData.role);
+              }
             }
           } else {
             // Token is invalid, clear it
@@ -76,7 +82,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/login`, {
+      const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/login`;
+      console.log('🌐 Login API URL:', apiUrl);
+      console.log('📧 Login attempt:', { email });
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -84,28 +94,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         body: JSON.stringify({ email, password }),
       });
 
+      console.log('📥 Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        console.error('❌ Login failed - Status:', response.status);
+        console.error('❌ Error data:', errorData);
+        return false;
+      }
+
       const data = await response.json();
+      console.log('📥 Login response:', data);
 
       if (data.success) {
         const { user, token } = data.data;
         
-        setUser({
+        const userData = {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
           status: user.status
-        });
+        };
         
+        setUser(userData);
         localStorage.setItem('authToken', token);
         localStorage.setItem('userRole', user.role);
+        console.log('✅ Login successful!');
+        console.log('✅ User role stored:', user.role);
+        console.log('✅ User data:', userData);
         return true;
       } else {
-        console.error('Login failed:', data.message);
+        console.error('❌ Login failed:', data.message);
         return false;
       }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('❌ Login error:', error);
+      console.error('❌ Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       return false;
     }
   };

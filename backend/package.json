@@ -10,19 +10,20 @@
     "check-db": "node src/check-database.js",
     "setup": "node src/setup-production.js",
     "fix-admin": "node src/fix-admin.js",
+    "fix-super-admin": "node src/fix-super-admin.js",
     "diagnose": "node src/diagnose-and-fix.js",
     "test-users": "node test-users-api.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "helmet": "^7.1.0",
-    "morgan": "^1.10.0",
-    "dotenv": "^16.3.1",
     "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.0.3",
-    "express-rate-limit": "^7.1.5"
+    "morgan": "^1.10.0",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

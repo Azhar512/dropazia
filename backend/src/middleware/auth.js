@@ -26,7 +26,7 @@ const authenticateToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Get user from database
-    const user = await User.findById(decoded.userId).select('name email role status isActive');
+    const user = await User.findById(decoded.userId);
 
     if (!user) {
       return res.status(401).json({
@@ -35,19 +35,21 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    if (!user.isActive) {
+    if (!user.is_active) {
       return res.status(401).json({
         success: false,
         message: 'Account is deactivated'
       });
     }
 
+    const formattedUser = User.formatUser(user);
+
     req.user = {
-      id: user._id.toString(),
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      status: user.status
+      id: formattedUser.id,
+      name: formattedUser.name,
+      email: formattedUser.email,
+      role: formattedUser.role,
+      status: formattedUser.status
     };
 
     next();
@@ -66,9 +68,9 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
-// Require admin role
+// Require admin role (admin or super_admin)
 const requireAdmin = (req, res, next) => {
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
     return res.status(403).json({
       success: false,
       message: 'Admin access required'
@@ -77,7 +79,19 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+// Require super admin role (only super_admin)
+const requireSuperAdmin = (req, res, next) => {
+  if (req.user.role !== 'super_admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Super admin access required'
+    });
+  }
+  next();
+};
+
 module.exports = {
   authenticateToken,
-  requireAdmin
+  requireAdmin,
+  requireSuperAdmin
 };

@@ -1,20 +1,10 @@
-const mongoose = require('mongoose');
+// Check Products Urgent - Supabase PostgreSQL
 require('dotenv').config();
 
+const { connectDB } = require('./config/database-supabase');
 const Product = require('./models/Product');
 const User = require('./models/User');
-const Order = require('./models/Order');
-
-const connectDB = async () => {
-  try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/shopdaraz';
-    await mongoose.connect(mongoUri);
-    console.log('✅ Connected to MongoDB');
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
-    process.exit(1);
-  }
-};
+const OrderService = require('./models/Order');
 
 const checkDatabase = async () => {
   try {
@@ -24,9 +14,9 @@ const checkDatabase = async () => {
     console.log('='.repeat(50));
     
     // Check products
-    const productCount = await Product.countDocuments({});
-    const activeProducts = await Product.countDocuments({ status: 'active' });
-    const allProducts = await Product.find({}).select('name category price module status createdAt').lean();
+    const products = await Product.find({});
+    const productCount = products.length;
+    const activeProducts = products.filter(p => p.status === 'active').length;
     
     console.log(`\n📦 PRODUCTS:`);
     console.log(`   Total Products: ${productCount}`);
@@ -34,13 +24,14 @@ const checkDatabase = async () => {
     
     if (productCount > 0) {
       console.log(`\n📋 ALL PRODUCTS IN DATABASE:`);
-      allProducts.forEach((product, index) => {
-        console.log(`   ${index + 1}. ${product.name}`);
-        console.log(`      Category: ${product.category || 'N/A'}`);
-        console.log(`      Price: Rs ${product.price || 0}`);
-        console.log(`      Module: ${product.module || 'N/A'}`);
-        console.log(`      Status: ${product.status || 'N/A'}`);
-        console.log(`      Created: ${product.createdAt ? new Date(product.createdAt).toLocaleString() : 'N/A'}`);
+      products.forEach((product, index) => {
+        const formattedProduct = Product.formatProduct(product);
+        console.log(`   ${index + 1}. ${formattedProduct.name}`);
+        console.log(`      Category: ${formattedProduct.category || 'N/A'}`);
+        console.log(`      Price: Rs ${formattedProduct.price || 0}`);
+        console.log(`      Module: ${formattedProduct.module || 'N/A'}`);
+        console.log(`      Status: ${formattedProduct.status || 'N/A'}`);
+        console.log(`      Created: ${formattedProduct.createdAt ? new Date(formattedProduct.createdAt).toLocaleString() : 'N/A'}`);
         console.log('');
       });
     } else {
@@ -48,11 +39,13 @@ const checkDatabase = async () => {
     }
     
     // Check users
-    const userCount = await User.countDocuments({});
+    const users = await User.find({});
+    const userCount = users.length;
     console.log(`\n👤 USERS: ${userCount}`);
     
     // Check orders
-    const orderCount = await Order.countDocuments({});
+    const orders = await OrderService.getAll(1000, 0);
+    const orderCount = orders.length;
     console.log(`📋 ORDERS: ${orderCount}`);
     
     console.log('\n' + '='.repeat(50));
@@ -69,10 +62,10 @@ const checkDatabase = async () => {
   } catch (error) {
     console.error('❌ Error checking database:', error);
   } finally {
-    mongoose.connection.close();
+    const { closeDB } = require('./config/database-supabase');
+    await closeDB();
     process.exit(0);
   }
 };
 
 checkDatabase();
-

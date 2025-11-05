@@ -1,35 +1,37 @@
-const mongoose = require('mongoose');
+// Database Seed Script - Supabase PostgreSQL
+// ⚠️ WARNING: This script is DEPRECATED for Supabase
+// Use the admin dashboard or API to add products instead
+// This script is kept for reference only
+
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
+const { connectDB } = require('./config/database-supabase');
 const User = require('./models/User');
 const Product = require('./models/Product');
 
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/shopdaraz');
-    console.log('✅ Connected to MongoDB');
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
-    process.exit(1);
-  }
-};
-
 const seedData = async () => {
   try {
-    // ULTRA-SAFE: Check database state first (connectDB already called before seedData)
-    const existingUsers = await User.countDocuments({});
-    const existingProducts = await Product.countDocuments({});
+    console.log('⚠️  WARNING: Seed script for Supabase');
+    console.log('⚠️  This script is kept for reference only');
+    console.log('⚠️  Use the admin dashboard to add products instead\n');
+    
+    await connectDB();
+    console.log('✅ Connected to Supabase PostgreSQL');
+    
+    // Check database state
+    const existingUsers = await User.find({});
+    const existingProducts = await Product.find({});
     
     console.log('\n🔍 DATABASE STATE CHECK:');
-    console.log(`   Users: ${existingUsers}`);
-    console.log(`   Products: ${existingProducts}\n`);
+    console.log(`   Users: ${existingUsers.length}`);
+    console.log(`   Products: ${existingProducts.length}\n`);
     
     // CRITICAL SAFETY: Always require explicit confirmation if data exists
-    if (existingProducts > 0 || existingUsers > 0) {
+    if (existingProducts.length > 0 || existingUsers.length > 0) {
       console.error('❌❌❌ CRITICAL WARNING ❌❌❌');
       console.error('⚠️ DATABASE CONTAINS EXISTING DATA!');
-      console.error(`⚠️ Found ${existingUsers} users and ${existingProducts} products`);
+      console.error(`⚠️ Found ${existingUsers.length} users and ${existingProducts.length} products`);
       console.error('⚠️ Running seed script will DELETE ALL existing data!');
       console.error('\n🔒 BLOCKED: This script is now DISABLED to prevent data loss.');
       console.error('💡 If you need to create admin user, use: npm run create-admin');
@@ -54,9 +56,9 @@ const seedData = async () => {
       await new Promise(resolve => setTimeout(resolve, 10000));
     }
     
-    // Only clear if database is already empty (double-check)
-    const finalUserCount = await User.countDocuments({});
-    const finalProductCount = await Product.countDocuments({});
+    // Double-check database is still empty
+    const finalUserCount = (await User.find({})).length;
+    const finalProductCount = (await Product.find({})).length;
     
     if (finalProductCount > 0 || finalUserCount > 0) {
       console.error('❌ ABORTED: Database still contains data. Not clearing.');
@@ -98,19 +100,19 @@ const seedData = async () => {
         stock: 45,
         module: 'daraz',
         status: 'active',
-        createdBy: adminUser._id,
-        images: [{
+        createdBy: adminUser.id,
+        images: JSON.stringify([{
           url: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=400',
-          altText: 'Summer Dress',
+          alt: 'Summer Dress',
           isPrimary: true,
           type: 'jpg'
-        }],
-        documents: [{
+        }]),
+        documents: JSON.stringify([{
           name: 'Summer Dress Description.pdf',
           url: '#',
           type: 'pdf',
           sizeBytes: 1024000
-        }]
+        }])
       },
       {
         name: 'Men\'s Watch',
@@ -120,19 +122,19 @@ const seedData = async () => {
         stock: 20,
         module: 'daraz',
         status: 'active',
-        createdBy: adminUser._id,
-        images: [{
+        createdBy: adminUser.id,
+        images: JSON.stringify([{
           url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400',
-          altText: 'Men\'s Watch',
+          alt: 'Men\'s Watch',
           isPrimary: true,
           type: 'jpg'
-        }],
-        documents: [{
+        }]),
+        documents: JSON.stringify([{
           name: 'Watch Specifications.pdf',
           url: '#',
           type: 'pdf',
           sizeBytes: 512000
-        }]
+        }])
       },
       {
         name: 'Premium Home Decor Set',
@@ -142,19 +144,19 @@ const seedData = async () => {
         stock: 15,
         module: 'shopify',
         status: 'active',
-        createdBy: adminUser._id,
-        images: [{
+        createdBy: adminUser.id,
+        images: JSON.stringify([{
           url: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400',
-          altText: 'Home Decor',
+          alt: 'Home Decor',
           isPrimary: true,
           type: 'jpg'
-        }],
-        documents: [{
+        }]),
+        documents: JSON.stringify([{
           name: 'Home Decor Guide.pdf',
           url: '#',
           type: 'pdf',
           sizeBytes: 2048000
-        }]
+        }])
       },
       {
         name: 'Kids Running Shoes',
@@ -164,23 +166,25 @@ const seedData = async () => {
         stock: 30,
         module: 'shopify',
         status: 'active',
-        createdBy: adminUser._id,
-        images: [{
+        createdBy: adminUser.id,
+        images: JSON.stringify([{
           url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400',
-          altText: 'Kids Shoes',
+          alt: 'Kids Shoes',
           isPrimary: true,
           type: 'jpg'
-        }],
-        documents: [{
+        }]),
+        documents: JSON.stringify([{
           name: 'Shoe Size Guide.pdf',
           url: '#',
           type: 'pdf',
           sizeBytes: 768000
-        }]
+        }])
       }
     ];
 
-    await Product.insertMany(products);
+    for (const productData of products) {
+      await Product.create(productData);
+    }
     console.log('📦 Created sample products');
 
     console.log('✅ Database seeded successfully!');
@@ -191,11 +195,11 @@ const seedData = async () => {
   } catch (error) {
     console.error('❌ Seeding error:', error);
   } finally {
-    mongoose.connection.close();
+    const { closeDB } = require('./config/database-supabase');
+    await closeDB();
+    process.exit(0);
   }
 };
 
 // Run seeding
-connectDB().then(() => {
-  seedData();
-});
+seedData();

@@ -39,7 +39,7 @@ const LoginModal = () => {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Login to ShopDaraz</DialogTitle>
+          <DialogTitle>Login to Dropazia</DialogTitle>
           <DialogDescription>
             Enter your credentials to access your account
           </DialogDescription>

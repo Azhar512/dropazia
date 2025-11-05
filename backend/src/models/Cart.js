@@ -1,185 +1,140 @@
-const mongoose = require('mongoose');
-
-const cartItemSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  product: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product',
-    required: true
-  },
-  quantity: {
-    type: Number,
-    required: true,
-    min: 1
-  }
-}, {
-  timestamps: true
-});
-
-// Ensure one cart item per user-product combination
-cartItemSchema.index({ user: 1, product: 1 }, { unique: true });
-
-// Index for better performance
-cartItemSchema.index({ user: 1 });
-
-const CartItem = mongoose.model('CartItem', cartItemSchema);
+// PostgreSQL Cart Model using pg (Supabase)
+const { getPool } = require('../config/database-supabase');
+const Product = require('./Product');
 
 class Cart {
   // Get user's cart with populated product data
   static async getByUserId(userId) {
-    try {
-      const cartItems = await CartItem.find({ user: userId })
-        .populate({
-          path: 'product',
-          select: 'name price stock module images'
-        })
-        .sort({ createdAt: -1 });
+    const pool = getPool();
+    const result = await pool.query(
+      `SELECT 
+        ci.id,
+        ci.user_id,
+        ci.product_id,
+        ci.quantity,
+        ci.created_at,
+        ci.updated_at,
+        p.name as product_name,
+        p.price,
+        p.stock,
+        p.module,
+        p.images
+      FROM cart_items ci
+      INNER JOIN products p ON ci.product_id = p.id
+      WHERE ci.user_id = $1
+      ORDER BY ci.created_at DESC`,
+      [userId]
+    );
 
-      // Transform the data to match frontend expectations
-      return cartItems.map(item => {
-        const product = item.product || {};
-        const primaryImage = product.images?.find(img => img.isPrimary) || product.images?.[0];
-        
-        return {
-          id: item._id,
-          product_id: product._id,
-          product_name: product.name,
-          price: product.price,
-          stock: product.stock,
-          module: product.module,
-          product_image_url: primaryImage?.url || null,
-          quantity: item.quantity,
-          added_at: item.createdAt
-        };
-      });
-    } catch (error) {
-      console.error('Error getting cart:', error);
-      throw error;
-    }
+    // Transform the data to match frontend expectations
+    return result.rows.map(item => {
+      let images = [];
+      try {
+        images = typeof item.images === 'string' ? JSON.parse(item.images) : (item.images || []);
+      } catch (e) {
+        images = [];
+      }
+      
+      const primaryImage = images.find(img => img.isPrimary) || images[0];
+      
+      return {
+        id: item.id,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        price: parseFloat(item.price),
+        stock: parseInt(item.stock || 0),
+        module: item.module,
+        product_image_url: primaryImage?.url || null,
+        quantity: parseInt(item.quantity),
+        added_at: item.created_at
+      };
+    });
   }
 
   // Add item to cart
   static async addItem(userId, productId, quantity = 1) {
-    try {
-      const existingItem = await CartItem.findOne({
-        user: userId,
-        product: productId
-      });
+    const pool = getPool();
+    
+    // Check if item already exists
+    const existing = await pool.query(
+      'SELECT * FROM cart_items WHERE user_id = $1 AND product_id = $2',
+      [userId, productId]
+    );
 
-      if (existingItem) {
-        // Update existing item quantity
-        existingItem.quantity += quantity;
-        await existingItem.save();
-      } else {
-        // Create new cart item
-        await CartItem.create({
-          user: userId,
-          product: productId,
-          quantity
-        });
-      }
-
-      return { success: true };
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-      throw error;
+    if (existing.rows.length > 0) {
+      // Update existing item quantity
+      const result = await pool.query(
+        'UPDATE cart_items SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2 AND product_id = $3 RETURNING *',
+        [quantity, userId, productId]
+      );
+      return { success: true, item: result.rows[0] };
+    } else {
+      // Create new cart item
+      const result = await pool.query(
+        'INSERT INTO cart_items (user_id, product_id, quantity) VALUES ($1, $2, $3) RETURNING *',
+        [userId, productId, quantity]
+      );
+      return { success: true, item: result.rows[0] };
     }
   }
 
   // Update item quantity
   static async updateQuantity(userId, productId, quantity) {
-    try {
-      if (quantity <= 0) {
-        return await this.removeItem(userId, productId);
-      }
-
-      const item = await CartItem.findOneAndUpdate(
-        { user: userId, product: productId },
-        { quantity },
-        { new: true }
-      );
-
-      return item;
-    } catch (error) {
-      console.error('Error updating cart quantity:', error);
-      throw error;
+    const pool = getPool();
+    
+    if (quantity <= 0) {
+      return await this.removeItem(userId, productId);
     }
+
+    const result = await pool.query(
+      'UPDATE cart_items SET quantity = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2 AND product_id = $3 RETURNING *',
+      [quantity, userId, productId]
+    );
+
+    return result.rows[0] || null;
   }
 
   // Remove item from cart
   static async removeItem(userId, productId) {
-    try {
-      const item = await CartItem.findOneAndDelete({
-        user: userId,
-        product: productId
-      });
+    const pool = getPool();
+    const result = await pool.query(
+      'DELETE FROM cart_items WHERE user_id = $1 AND product_id = $2 RETURNING *',
+      [userId, productId]
+    );
 
-      return item;
-    } catch (error) {
-      console.error('Error removing from cart:', error);
-      throw error;
-    }
+    return result.rows[0] || null;
   }
 
   // Clear user's cart
   static async clearCart(userId) {
-    try {
-      await CartItem.deleteMany({ user: userId });
-      return { success: true };
-    } catch (error) {
-      console.error('Error clearing cart:', error);
-      throw error;
-    }
+    const pool = getPool();
+    await pool.query('DELETE FROM cart_items WHERE user_id = $1', [userId]);
+    return { success: true };
   }
 
   // Get cart item count
   static async getItemCount(userId) {
-    try {
-      const result = await CartItem.aggregate([
-        { $match: { user: mongoose.Types.ObjectId(userId) } },
-        { $group: { _id: null, total: { $sum: '$quantity' } } }
-      ]);
+    const pool = getPool();
+    const result = await pool.query(
+      'SELECT COALESCE(SUM(quantity), 0) as total FROM cart_items WHERE user_id = $1',
+      [userId]
+    );
 
-      return result.length > 0 ? result[0].total : 0;
-    } catch (error) {
-      console.error('Error getting cart count:', error);
-      return 0;
-    }
+    return parseInt(result.rows[0].total || 0);
   }
 
   // Get cart total
   static async getTotal(userId) {
-    try {
-      const result = await CartItem.aggregate([
-        { $match: { user: mongoose.Types.ObjectId(userId) } },
-        {
-          $lookup: {
-            from: 'products',
-            localField: 'product',
-            foreignField: '_id',
-            as: 'productData'
-          }
-        },
-        { $unwind: '$productData' },
-        {
-          $group: {
-            _id: null,
-            total: {
-              $sum: { $multiply: ['$quantity', '$productData.price'] }
-            }
-          }
-        }
-      ]);
+    const pool = getPool();
+    const result = await pool.query(
+      `SELECT COALESCE(SUM(ci.quantity * p.price), 0) as total
+       FROM cart_items ci
+       INNER JOIN products p ON ci.product_id = p.id
+       WHERE ci.user_id = $1`,
+      [userId]
+    );
 
-      return result.length > 0 ? result[0].total : 0;
-    } catch (error) {
-      console.error('Error getting cart total:', error);
-      return 0;
-    }
+    return parseFloat(result.rows[0].total || 0);
   }
 }
 

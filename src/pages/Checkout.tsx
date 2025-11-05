@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,42 +12,77 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/contexts/CartContext';
 import { useProducts } from '@/contexts/ProductContext';
-import { jazzCashService, formatCurrency, validatePaymentData } from '@/services/jazzcash';
+// Removed unused jazzCashService and validatePaymentData imports
 import { Order } from '@/types/product';
 import ApiService from '@/services/api';
+import LoginForm from '@/components/LoginForm';
+import RegisterForm from '@/components/RegisterForm';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
+
+// Format currency helper - moved outside component to avoid re-render issues
+const formatCurrency = (amount: number | undefined | null): string => {
+  if (amount === null || amount === undefined || isNaN(Number(amount))) {
+    return 'Rs 0';
+  }
+  const numAmount = Number(amount);
+  return `Rs ${numAmount.toLocaleString('en-PK')}`;
+};
 
 const Checkout = () => {
+  // All hooks must be called unconditionally at the top level
   const navigate = useNavigate();
   const { user } = useAuth();
   const { cartItems, clearCart, getCartItemsCount } = useCart();
-  const { products, addOrder } = useProducts();
+  const { products, addOrder, refreshOrders } = useProducts();
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentStep, setPaymentStep] = useState<'details' | 'payment' | 'receipt' | 'processing' | 'success'>('details');
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [orderPlaced, setOrderPlaced] = useState(false);
   
   // Daraz required documents
   const [customerAddressFile, setCustomerAddressFile] = useState<File | null>(null);
   const [customerAddressPreview, setCustomerAddressPreview] = useState<string | null>(null);
   const [darazCustomerFile, setDarazCustomerFile] = useState<File | null>(null);
   const [darazCustomerPreview, setDarazCustomerPreview] = useState<string | null>(null);
-  
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+
   // Form data
   const [formData, setFormData] = useState({
-    customerName: user?.name || '',
-    customerEmail: user?.email || '',
-    customerPhone: user?.phone || '',
+    customerName: '',
+    customerEmail: '',
+    customerPhone: '',
+    extraPhone: '', // Optional extra phone for Shopify
     street: '',
     city: '',
+    nearestLocation: '', // Optional nearest location for Shopify
     state: '',
     zipCode: '',
     country: 'Pakistan',
     paymentMethod: 'jazzcash'
   });
 
+  // Update form data when user loads - real-time updates
+  useEffect(() => {
+    if (user && user.name && user.email) {
+      setFormData(prev => ({
+        ...prev,
+        customerName: user.name || prev.customerName || '',
+        customerEmail: user.email || prev.customerEmail || '',
+        customerPhone: user.phone || prev.customerPhone || ''
+      }));
+    }
+  }, [user]);
+
+  // Note: Profit inputs are only for Resell orders, not for regular "Buy for Self" checkout
+
   // Get cart items with product details
-  const cartItemsWithDetails = React.useMemo(() => {
+  const cartItemsWithDetails = useMemo(() => {
+    if (!cartItems || !Array.isArray(cartItems) || !products || !Array.isArray(products)) {
+      return [];
+    }
     return cartItems.map(cartItem => {
       // Handle both productId and product_id for compatibility
       const itemProductId = cartItem.productId || cartItem.product_id;
@@ -61,67 +96,118 @@ const Checkout = () => {
   }, [cartItems, products]);
 
   // Detect module from products - use first available product
-  const detectedModule = React.useMemo(() => {
+  const detectedModule = useMemo(() => {
     if (cartItemsWithDetails.length === 0) return 'daraz';
     const firstProduct = cartItemsWithDetails[0]?.product;
     return firstProduct?.module || 'daraz';
   }, [cartItemsWithDetails]);
 
-  // Calculate subtotal with profit for each module
-  const subtotal = React.useMemo(() => {
+  // Calculate subtotal - No profit for "Buy for Self" checkout (profit is only for Resell orders)
+  const subtotal = useMemo(() => {
     if (cartItemsWithDetails.length === 0) return 0;
     
     return cartItemsWithDetails.reduce((total, item) => {
       if (!item.product) return total;
       const productPrice = item.product.price || 0;
-      const profit = item.product.profit || 0;
       const quantity = item.quantity || 0;
-      // For Shopify, user adds profit; for Daraz, profit is built into price
-      const itemTotal = detectedModule === 'shopify' 
-        ? (productPrice + profit) * quantity
-        : productPrice * quantity;
-      return total + itemTotal;
+      return total + (productPrice * quantity);
     }, 0);
-  }, [cartItemsWithDetails, detectedModule]);
+  }, [cartItemsWithDetails]);
 
   // Delivery charges - only for Daraz (fixed Rs 50), Shopify charges set by admin at delivery
-  const deliveryCharges = React.useMemo(() => {
+  const deliveryCharges = useMemo(() => {
     return detectedModule === 'daraz' ? 50 : 0;
   }, [detectedModule]);
   
   // Payment calculation based on module
-  const paymentAmount = React.useMemo(() => {
+  const paymentAmount = useMemo(() => {
     return detectedModule === 'daraz' 
       ? subtotal + deliveryCharges  // Daraz: Full payment (100%) + 50 delivery upfront
-      : 0;                           // Shopify: Pay nothing upfront, admin decides delivery charges at delivery
+      : 250;                         // Shopify: Fixed Rs 250 upfront payment
   }, [detectedModule, subtotal, deliveryCharges]);
   
-  const total = React.useMemo(() => {
+  const total = useMemo(() => {
     return subtotal + (detectedModule === 'daraz' ? deliveryCharges : 0);
   }, [subtotal, detectedModule, deliveryCharges]);
 
   // Redirect if cart is empty
   useEffect(() => {
-    if (getCartItemsCount() === 0) {
-      navigate('/');
+    try {
+      const cartCount = getCartItemsCount ? getCartItemsCount() : 0;
+      if (cartCount === 0) {
+        navigate('/');
+      }
+    } catch (error) {
+      console.error('Error checking cart count:', error);
     }
   }, [getCartItemsCount, navigate]);
 
-  // Redirect if not logged in
+  // Check if user is logged in - show login/register prompt instead of redirecting
   useEffect(() => {
-    if (!user) {
-      navigate('/daraz');
+    try {
+      const cartCount = getCartItemsCount ? getCartItemsCount() : 0;
+      if (!user && cartCount > 0) {
+        setShowAuthPrompt(true);
+      }
+    } catch (error) {
+      console.error('Error checking auth prompt:', error);
     }
-  }, [user, navigate]);
+  }, [user, getCartItemsCount]);
 
   // Show loading if products are not loaded yet
-  if (!products || products.length === 0) {
+  if (!products || !Array.isArray(products) || products.length === 0) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <Card className="p-8 text-center max-w-md">
           <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
           <h1 className="text-xl font-bold mb-2">Loading Checkout...</h1>
           <p className="text-muted-foreground">Please wait while we load your cart items</p>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show authentication prompt if user is not logged in
+  if (!user && showAuthPrompt) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-purple-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8">
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold mb-2">Login Required</h1>
+            <p className="text-muted-foreground">
+              Please login or create an account to proceed with checkout
+            </p>
+          </div>
+          
+          <Tabs defaultValue="login" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="login">Login</TabsTrigger>
+              <TabsTrigger value="register">Register</TabsTrigger>
+            </TabsList>
+            <TabsContent value="login" className="mt-6">
+              <LoginForm 
+                module={(detectedModule === 'daraz' || detectedModule === 'shopify') ? detectedModule : 'daraz'} 
+                onSuccess={() => setShowAuthPrompt(false)}
+              />
+            </TabsContent>
+            <TabsContent value="register" className="mt-6">
+              <RegisterForm 
+                module={(detectedModule === 'daraz' || detectedModule === 'shopify') ? detectedModule : 'daraz'}
+                onSuccess={() => setShowAuthPrompt(false)}
+              />
+            </TabsContent>
+          </Tabs>
+          
+          <div className="mt-4 text-center">
+            <Button
+              variant="ghost"
+              onClick={() => navigate(-1)}
+              className="text-sm"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Continue Shopping
+            </Button>
+          </div>
         </Card>
       </div>
     );
@@ -137,10 +223,48 @@ const Checkout = () => {
   const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please upload an image file for the receipt.');
+        return;
+      }
       setReceiptFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setReceiptPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle Daraz customer address document upload
+  const handleCustomerAddressUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        toast.error('Please upload a PDF file for customer address details.');
+        return;
+      }
+      setCustomerAddressFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCustomerAddressPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle Daraz customer document upload
+  const handleDarazCustomerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        toast.error('Please upload a PDF file for Daraz customer document.');
+        return;
+      }
+      setDarazCustomerFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setDarazCustomerPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
@@ -153,42 +277,40 @@ const Checkout = () => {
     try {
       // Validate payment receipt
       if (!receiptFile) {
-        alert('Please upload payment receipt before proceeding.');
+        toast.error('Please upload payment receipt before proceeding.');
         setPaymentStep('details');
         setIsProcessing(false);
         return;
       }
 
+      // Note: Profit input is only for Resell orders, not for regular "Buy for Self" checkout
+
       // Validate Daraz required documents
       if (detectedModule === 'daraz') {
         if (!customerAddressFile) {
-          alert('Please upload customer address details PDF document. This is required for Daraz orders.');
+          toast.error('Please upload customer address details PDF document. This is required for Daraz orders.');
           setPaymentStep('details');
           setIsProcessing(false);
           return;
         }
         if (!darazCustomerFile) {
-          alert('Please upload Daraz customer document PDF. This is required for Daraz orders.');
+          toast.error('Please upload Daraz customer document PDF. This is required for Daraz orders.');
           setPaymentStep('details');
           setIsProcessing(false);
           return;
         }
       }
 
-      // Create WhatsApp message with order details
-      const orderDetails = cartItemsWithDetails.map(item => 
-        `- ${item.product!.name} x${item.quantity} = Rs ${item.product!.price * item.quantity}`
-      ).join('\n');
-
-      const whatsappMessage = `Order Confirmation\n\nCustomer: ${formData.customerName}\nEmail: ${formData.customerEmail}\nPhone: ${formData.customerPhone}\n\nItems:\n${orderDetails}\n\nSubtotal: Rs ${subtotal}\nDelivery Charges: Rs ${deliveryCharges}\nTotal: Rs ${total}\n\nPayment Amount: Rs ${paymentAmount}\n\nAddress: ${formData.street}, ${formData.city}, ${formData.state} ${formData.zipCode}\n\nI have made the payment. Please find attached receipt.`;
-
-      // Open WhatsApp with pre-filled message
-      const phoneNumber = '+923256045679';
-      const cleanPhone = phoneNumber.replace(/\D/g, '');
-      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(whatsappMessage)}`;
-      
-      // Open WhatsApp in new tab
-      window.open(whatsappUrl, '_blank');
+      // Convert receipt to base64 for payment receipt
+      let receiptBase64 = null;
+      if (receiptFile) {
+        receiptBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(receiptFile);
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = error => reject(error);
+        });
+      }
 
       // Convert PDF files to base64 for Daraz orders
       let customerAddressDocument = null;
@@ -227,14 +349,21 @@ const Checkout = () => {
         customerName: formData.customerName,
         customerEmail: formData.customerEmail,
         customerPhone: formData.customerPhone || '',
-        items: cartItemsWithDetails.map(item => ({
-          product: item.productId,
-          productName: item.product!.name,
-          productImageUrl: item.product!.images[0]?.url || '',
-          quantity: item.quantity,
-          unitPrice: item.product!.price,
-          totalPrice: item.product!.price * item.quantity
-        })),
+        extraPhone: detectedModule === 'shopify' ? (formData.extraPhone || '') : undefined,
+        items: cartItemsWithDetails.map(item => {
+          const itemPrice = item.product!.price || 0;
+          const quantity = item.quantity || 0;
+          const itemTotal = itemPrice * quantity;
+          
+          return {
+            product: item.productId,
+            productName: item.product!.name,
+            productImageUrl: item.product!.images[0]?.url || '',
+            quantity: quantity,
+            unitPrice: itemPrice,
+            totalPrice: itemTotal
+          };
+        }),
         totalAmount: total,
         paymentMethod: formData.paymentMethod,
         module: detectedModule,
@@ -243,91 +372,130 @@ const Checkout = () => {
           city: formData.city,
           state: formData.state,
           zipCode: formData.zipCode,
-          country: formData.country
+          country: formData.country,
+          nearestLocation: detectedModule === 'shopify' ? (formData.nearestLocation || '') : undefined
         },
         paymentAmount: paymentAmount,
-        paymentType: detectedModule === 'daraz' ? 'full' : 'delivery_only',
+        paymentType: detectedModule === 'daraz' ? 'full' : 'shopify_250',
+        paymentReceipt: receiptBase64 ? {
+          name: receiptFile!.name,
+          url: receiptBase64,
+          type: 'image'
+        } : undefined,
         customerAddressDocument: customerAddressDocument,
         darazCustomerDocument: darazCustomerDocument,
-        notes: `Payment receipt uploaded. WhatsApp sent to +923256045679${detectedModule === 'daraz' ? '. Customer address and Daraz documents uploaded.' : ''}`
+        notes: `Payment receipt uploaded.${detectedModule === 'daraz' ? ' Customer address and Daraz documents uploaded.' : ' Order placed via Buy for Self checkout.'}`
       };
 
-      // Save order to backend database
-      const orderResponse = await ApiService.createOrder(orderData);
-      
-      console.log('✅ Order saved to database:', orderResponse);
-
-      // Add order to context for frontend
-      if (orderResponse.success && orderResponse.data) {
-        const backendOrder = orderResponse.data;
-        const frontendOrder: Order = {
-          id: backendOrder._id || backendOrder.id || `ORDER-${Date.now()}`,
-          customerId: user!.id,
-          customerName: formData.customerName,
-          customerEmail: formData.customerEmail,
-          items: cartItemsWithDetails.map(item => ({
-            productId: item.productId,
-            productName: item.product!.name,
-            productImage: item.product!.images[0]?.url,
-            quantity: item.quantity,
-            price: item.product!.price,
-            totalPrice: item.product!.price * item.quantity
-          })),
-          totalAmount: total,
-          status: backendOrder.status || 'pending',
-          paymentStatus: backendOrder.paymentStatus || 'pending',
-          shippingAddress: {
-            street: formData.street,
-            city: formData.city,
-            state: formData.state,
-            zipCode: formData.zipCode,
-            country: formData.country
-          },
-          createdAt: backendOrder.createdAt || new Date().toISOString(),
-          updatedAt: backendOrder.updatedAt || new Date().toISOString(),
-          module: detectedModule,
-          paymentAmount: paymentAmount,
-          paymentType: detectedModule === 'daraz' ? 'full' : 'delivery_only'
-        };
-        addOrder(frontendOrder);
+      // Validate user is logged in
+      if (!user || !user.id) {
+        toast.error('You must be logged in to place an order. Please login and try again.');
+        setPaymentStep('details');
+        setIsProcessing(false);
+        return;
       }
 
-      // Clear cart
+      // Save order to backend database (CRITICAL: This must succeed before clearing cart)
+      const orderResponse = await ApiService.createOrder(orderData);
+      
+      // Validate order was saved successfully
+      if (!orderResponse.success || !orderResponse.data) {
+        throw new Error(orderResponse.message || 'Failed to save order to database');
+      }
+
+      console.log('✅ Order saved to database:', orderResponse);
+      const backendOrder = orderResponse.data;
+
+      // Order is now safely in database - add to frontend context
+      const frontendOrder: Order = {
+        id: backendOrder._id || backendOrder.id || `ORDER-${Date.now()}`,
+        customerId: user.id,
+        customerName: formData.customerName,
+        customerEmail: formData.customerEmail,
+        items: cartItemsWithDetails.map(item => ({
+          productId: item.productId,
+          productName: item.product!.name,
+          productImage: item.product!.images[0]?.url,
+          quantity: item.quantity,
+          price: item.product!.price,
+          totalPrice: item.product!.price * item.quantity
+        })),
+        totalAmount: total,
+        status: backendOrder.status || 'pending',
+        paymentStatus: backendOrder.paymentStatus || 'pending',
+        shippingAddress: {
+          street: formData.street,
+          city: formData.city,
+          state: formData.state,
+          zipCode: formData.zipCode,
+          country: formData.country
+        },
+        createdAt: backendOrder.createdAt || new Date().toISOString(),
+        updatedAt: backendOrder.updatedAt || new Date().toISOString(),
+        module: detectedModule,
+        paymentAmount: paymentAmount,
+        paymentType: detectedModule === 'daraz' ? 'full' : 'delivery_only'
+      };
+      
+      // Add to context for immediate UI update
+      addOrder(frontendOrder);
+
+      // Refresh orders from database to ensure consistency (non-critical - order already saved)
+      try {
+        await refreshOrders();
+      } catch (refreshError) {
+        console.warn('⚠️ Failed to refresh orders from database, but order is saved:', refreshError);
+        // Order is already in DB, so this is not critical
+      }
+
+      // Clear cart ONLY after order is confirmed saved to database
       clearCart();
 
-      // Wait a moment then show success
-      setTimeout(() => {
-        setPaymentStep('success');
-        setIsProcessing(false);
-      }, 2000);
+      // Show success message - NO WhatsApp opening
+      setOrderPlaced(true);
+      setIsProcessing(false);
 
     } catch (error) {
       console.error('Payment error:', error);
-      alert('Order processing failed. Please try again.');
+      toast.error('Order processing failed. Please try again.');
       setPaymentStep('details');
       setIsProcessing(false);
     }
   };
 
-  if (paymentStep === 'success') {
+  // Show success screen after order is placed
+  if (orderPlaced) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <Card className="p-8 text-center max-w-md">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 text-center">
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
             <CreditCard className="w-8 h-8 text-green-600" />
           </div>
-          <h1 className="text-2xl font-bold mb-2">Order Placed Successfully!</h1>
+          <h1 className="text-2xl font-bold mb-2 text-green-600">Your Order Has Been Placed!</h1>
           <p className="text-muted-foreground mb-6">
-            Your receipt has been sent to WhatsApp. Your order is being processed and you will receive a confirmation soon.
+            Your order has been successfully submitted. Our team will process your order and contact you soon.
           </p>
-          <p className="text-sm font-semibold text-green-600 mb-6">
-            WhatsApp Number: +923256045679
-          </p>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+            <p className="text-sm font-semibold text-green-800 mb-2">Order Details:</p>
+            <div className="text-left space-y-1 text-sm">
+              <p><strong>Items:</strong> {cartItemsWithDetails.length} item(s)</p>
+              <p><strong>Total Amount:</strong> Rs {total.toLocaleString()}</p>
+              <p><strong>Payment:</strong> Rs {paymentAmount.toLocaleString()} ({detectedModule === 'daraz' ? 'Full Payment' : 'Upfront Payment'})</p>
+              <p><strong>Module:</strong> {detectedModule.toUpperCase()}</p>
+            </div>
+          </div>
           <div className="space-y-2">
-            <Button onClick={() => navigate('/customer-dashboard')} className="w-full">
+            <Button 
+              onClick={() => navigate('/customer-dashboard')} 
+              className="w-full bg-green-600 hover:bg-green-700"
+            >
               View My Orders
             </Button>
-            <Button variant="outline" onClick={() => navigate('/')} className="w-full">
+            <Button 
+              variant="outline" 
+              onClick={() => navigate('/')} 
+              className="w-full"
+            >
               Continue Shopping
             </Button>
           </div>
@@ -411,6 +579,17 @@ const Checkout = () => {
                     required
                   />
                 </div>
+                {detectedModule === 'shopify' && (
+                  <div>
+                    <Label htmlFor="extraPhone">Extra Phone (Optional)</Label>
+                    <Input
+                      id="extraPhone"
+                      value={formData.extraPhone}
+                      onChange={(e) => handleInputChange('extraPhone', e.target.value)}
+                      placeholder="+92 300 1234567"
+                    />
+                  </div>
+                )}
               </div>
             </Card>
 
@@ -468,8 +647,21 @@ const Checkout = () => {
                     />
                   </div>
                 </div>
+                {detectedModule === 'shopify' && (
+                  <div>
+                    <Label htmlFor="nearestLocation">Nearest Location (Optional)</Label>
+                    <Input
+                      id="nearestLocation"
+                      value={formData.nearestLocation}
+                      onChange={(e) => handleInputChange('nearestLocation', e.target.value)}
+                      placeholder="e.g., Near Mall, Main Road, etc."
+                    />
+                  </div>
+                )}
               </div>
             </Card>
+
+            {/* Note: Profit input is only for Resell orders, not for regular "Buy for Self" checkout */}
 
             {/* Daraz Required Documents */}
             {detectedModule === 'daraz' && (
@@ -592,7 +784,7 @@ const Checkout = () => {
                     </div>
                     <div>
                       <h3 className="font-semibold text-green-700">EasyPaisa Payment</h3>
-                      <p className="text-xs text-green-600">Send payment receipt via WhatsApp</p>
+                      <p className="text-xs text-green-600">Upload payment receipt to complete your order</p>
                     </div>
                   </div>
                   <div className="mt-3 space-y-2 text-sm">
@@ -651,6 +843,7 @@ const Checkout = () => {
                     if (!item.product) return null;
                     const itemPrice = item.product.price || 0;
                     const itemQuantity = item.quantity || 0;
+                    
                     const itemTotal = itemPrice * itemQuantity;
                     
                     return (
@@ -712,8 +905,8 @@ const Checkout = () => {
                     </div>
                   ) : (
                     <div>
-                      <p className="text-sm font-semibold text-purple-600 mb-1">Shopify Module:</p>
-                      <p className="text-xs text-muted-foreground">Pay nothing upfront. Delivery charges decided by admin at delivery time</p>
+                      <p className="text-sm font-semibold text-green-600 mb-1">Shopify Module:</p>
+                      <p className="text-xs text-muted-foreground">Pay Rs 250 upfront. Delivery charges decided by admin at delivery time</p>
                     </div>
                   )}
                 </div>
@@ -726,10 +919,10 @@ const Checkout = () => {
                 </div>
                 
                 <div className="flex justify-between text-lg font-bold border-t pt-2 mt-2">
-                  <span className={detectedModule === 'daraz' ? 'text-orange-600' : 'text-purple-600'}>
-                    {detectedModule === 'daraz' ? 'Pay Now (Full Payment + Delivery)' : 'Pay Now (Rs 0 - Free)'}
+                  <span className={detectedModule === 'daraz' ? 'text-orange-600' : 'text-green-600'}>
+                    {detectedModule === 'daraz' ? 'Pay Now (Full Payment + Delivery)' : 'Pay Now (Rs 250)'}
                   </span>
-                  <span className={detectedModule === 'daraz' ? 'text-orange-600' : 'text-purple-600'}>
+                  <span className={detectedModule === 'daraz' ? 'text-orange-600' : 'text-green-600'}>
                     {formatCurrency(paymentAmount)}
                   </span>
                 </div>
@@ -757,7 +950,7 @@ const Checkout = () => {
                       ? 'Upload Receipt First' 
                       : detectedModule === 'daraz' && (!customerAddressFile || !darazCustomerFile)
                       ? 'Upload Required PDF Documents First'
-                      : 'Complete Order & Send Receipt via WhatsApp'}
+                      : 'Complete Order'}
                   </>
                 )}
               </Button>

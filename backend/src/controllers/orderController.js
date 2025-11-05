@@ -1,11 +1,11 @@
 const OrderService = require('../models/Order');
 const Cart = require('../models/Cart');
+const { connectDB } = require('../config/database-supabase');
 
 // Create new order
 const createOrder = async (req, res) => {
   try {
     // Ensure database connection
-    const connectDB = require('../config/database');
     await connectDB();
 
     const userId = req.user.id;
@@ -60,7 +60,7 @@ const createOrder = async (req, res) => {
 
     // Create order data
     const order = {
-      customer: userId,
+      customerId: userId,
       customerName: orderData.customerName,
       customerEmail: orderData.customerEmail,
       customerPhone: orderData.customerPhone || '',
@@ -134,7 +134,7 @@ const getOrderById = async (req, res) => {
     }
 
     // Check if user owns this order (unless admin)
-    if (order.customer._id.toString() !== userId && req.user.role !== 'admin') {
+    if (order.customerId !== userId && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -232,7 +232,6 @@ const updateOrderStatus = async (req, res) => {
 const getAllOrders = async (req, res) => {
   try {
     // Ensure database connection
-    const connectDB = require('../config/database');
     await connectDB();
 
     if (req.user.role !== 'admin') {
@@ -249,16 +248,11 @@ const getAllOrders = async (req, res) => {
 
     // Map orders for frontend
     const mappedOrders = orders.map(order => ({
-      id: order._id.toString(),
-      _id: order._id.toString(),
+      id: order.id,
+      _id: order.id,
       orderNumber: order.orderNumber,
-      customer: order.customer ? {
-        id: order.customer._id?.toString() || order.customer.toString(),
-        name: order.customer.name || order.customerName || 'Unknown',
-        email: order.customer.email || order.customerEmail || '',
-        phone: order.customer.phone || order.customerPhone || ''
-      } : {
-        id: order.customer?.toString() || '',
+      customer: {
+        id: order.customerId || '',
         name: order.customerName || 'Unknown',
         email: order.customerEmail || '',
         phone: order.customerPhone || ''

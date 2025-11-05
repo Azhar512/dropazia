@@ -45,10 +45,7 @@ const Cart = () => {
   };
 
   const handleCheckout = () => {
-    if (!user) {
-      navigate('/daraz'); // Redirect to login
-      return;
-    }
+    // Allow checkout even without login - checkout page will prompt for auth
     setIsOpen(false);
     navigate('/checkout');
   };

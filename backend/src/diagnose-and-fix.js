@@ -1,25 +1,10 @@
-const mongoose = require('mongoose');
+// Database Diagnostic & Fix Tool - Supabase PostgreSQL
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
-// Set default MongoDB URI if not in env (PRODUCTION DATABASE)
-if (!process.env.MONGODB_URI) {
-  process.env.MONGODB_URI = 'mongodb+srv://dropazia:dropazia123@cluster0.9hv504i.mongodb.net/shopdaraz?retryWrites=true&w=majority';
-  console.log('ℹ️  Using production MONGODB_URI');
-}
-console.log('🔗 MongoDB URI:', process.env.MONGODB_URI.replace(/\/\/.*@/, '//***:***@'));
-
-if (!process.env.JWT_SECRET) {
-  process.env.JWT_SECRET = 'shopdaraz-hub-production-secret-key-min-32-chars-2024';
-}
-
-if (!process.env.NODE_ENV) {
-  process.env.NODE_ENV = 'production';
-}
-
+const { connectDB } = require('./config/database-supabase');
 const User = require('./models/User');
 const Product = require('./models/Product');
-const connectDB = require('./config/database');
 
 const diagnoseAndFix = async () => {
   try {
@@ -30,56 +15,51 @@ const diagnoseAndFix = async () => {
     // Step 1: Test Database Connection
     console.log('📡 Step 1: Testing Database Connection...');
     await connectDB();
-    const dbName = mongoose.connection.db.databaseName;
-    console.log('✅ Connected to MongoDB');
-    console.log('📊 Database:', dbName);
-    
-    if (dbName === 'test') {
-      console.error('❌ ERROR: Connected to "test" database!');
-      console.error('❌ Your MONGODB_URI is missing the database name!');
-      process.exit(1);
-    }
+    console.log('✅ Connected to Supabase PostgreSQL');
     console.log('');
     
     // Step 2: Check Users
     console.log('👤 Step 2: Checking Users...');
-    const userCount = await User.countDocuments();
+    const users = await User.find({});
+    const userCount = users.length;
     console.log(`   Total Users: ${userCount}`);
     
-    const adminUser = await User.findOne({ email: 'admin@shopdaraz.com' });
+    const adminUser = await User.findByEmail('admin@shopdaraz.com');
     if (adminUser) {
       console.log('   ✅ Admin user EXISTS');
       console.log(`   Name: ${adminUser.name}`);
       console.log(`   Role: ${adminUser.role}`);
       console.log(`   Status: ${adminUser.status}`);
-      console.log(`   Active: ${adminUser.isActive}`);
-      console.log(`   Password Hash: ${adminUser.passwordHash ? 'SET' : 'MISSING'}`);
+      console.log(`   Active: ${adminUser.is_active}`);
+      console.log(`   Password Hash: ${adminUser.password_hash ? 'SET' : 'MISSING'}`);
       
       // Test password
       console.log('   🔐 Testing password...');
       const testPassword = 'admin123';
       try {
-        const isValid = await bcrypt.compare(testPassword, adminUser.passwordHash);
+        const isValid = await bcrypt.compare(testPassword, adminUser.password_hash);
         if (isValid) {
           console.log('   ✅ Password "admin123" is CORRECT');
         } else {
           console.log('   ❌ Password "admin123" does NOT match!');
           console.log('   🔄 Resetting password...');
           const newHash = await bcrypt.hash('admin123', 10);
-          adminUser.passwordHash = newHash;
-          adminUser.isActive = true;
-          adminUser.status = 'approved';
-          await adminUser.save();
+          await User.update(adminUser.id, { 
+            passwordHash: newHash,
+            isActive: true,
+            status: 'approved'
+          });
           console.log('   ✅ Password reset to "admin123"');
         }
       } catch (pwdError) {
         console.log('   ❌ Error testing password:', pwdError.message);
         console.log('   🔄 Resetting password...');
         const newHash = await bcrypt.hash('admin123', 10);
-        adminUser.passwordHash = newHash;
-        adminUser.isActive = true;
-        adminUser.status = 'approved';
-        await adminUser.save();
+        await User.update(adminUser.id, { 
+          passwordHash: newHash,
+          isActive: true,
+          status: 'approved'
+        });
         console.log('   ✅ Password reset to "admin123"');
       }
     } else {
@@ -97,45 +77,36 @@ const diagnoseAndFix = async () => {
         isActive: true
       });
       console.log('   ✅ Admin user CREATED');
-      console.log(`   User ID: ${newAdmin._id}`);
+      console.log(`   User ID: ${newAdmin.id}`);
     }
     console.log('');
     
-    // Step 3: Verify Admin User
-    console.log('✅ Step 3: Final Verification...');
-    const finalAdmin = await User.findOne({ email: 'admin@shopdaraz.com' });
-    if (!finalAdmin) {
-      throw new Error('Admin user still not found after creation!');
-    }
-    
-    const finalPasswordTest = await bcrypt.compare('admin123', finalAdmin.passwordHash);
-    if (!finalPasswordTest) {
-      throw new Error('Password verification failed after fix!');
-    }
-    
-    console.log('   ✅ Admin user verified');
-    console.log('   ✅ Password verified');
-    console.log('   ✅ Status: approved');
-    console.log('   ✅ Active: true');
-    console.log('');
-    
-    // Step 4: Check Products
-    console.log('📦 Step 4: Checking Products...');
-    const productCount = await Product.countDocuments();
+    // Step 3: Check Products
+    console.log('📦 Step 3: Checking Products...');
+    const products = await Product.find({});
+    const productCount = products.length;
     console.log(`   Total Products: ${productCount}`);
+    
+    const darazProducts = products.filter(p => p.module === 'daraz').length;
+    const shopifyProducts = products.filter(p => p.module === 'shopify').length;
+    console.log(`   Daraz Products: ${darazProducts}`);
+    console.log(`   Shopify Products: ${shopifyProducts}`);
     console.log('');
     
-    // Final Summary
+    // Step 4: Summary
+    console.log('📊 Step 4: Summary');
+    console.log('   ✅ Database connection: OK');
+    console.log(`   ✅ Users: ${userCount}`);
+    console.log(`   ✅ Products: ${productCount}`);
+    console.log(`   ✅ Admin user: ${adminUser ? 'EXISTS' : 'CREATED'}`);
+    console.log('');
     console.log('✅ ==========================================');
-    console.log('✅ DIAGNOSTIC COMPLETE - ALL ISSUES FIXED!');
+    console.log('✅ DIAGNOSTIC COMPLETE!');
     console.log('✅ ==========================================');
     console.log('');
     console.log('📋 Admin Login Credentials:');
     console.log('   Email: admin@shopdaraz.com');
     console.log('   Password: admin123');
-    console.log('');
-    console.log('🎉 You can now login to the admin dashboard!');
-    console.log('   URL: https://dropazia.online/admin-login');
     console.log('');
 
   } catch (error) {
@@ -146,11 +117,11 @@ const diagnoseAndFix = async () => {
     }
     process.exit(1);
   } finally {
-    mongoose.connection.close();
+    const { closeDB } = require('./config/database-supabase');
+    await closeDB();
     process.exit(0);
   }
 };
 
 // Run
 diagnoseAndFix();
-

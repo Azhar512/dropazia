@@ -8,6 +8,7 @@ import { ProductProvider } from "@/contexts/ProductContext";
 import { CartProvider } from "@/contexts/CartContext";
 import { WishlistProvider } from "@/contexts/WishlistContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Landing from "./pages/Landing";
 import DarazAuth from "./pages/DarazAuth";
 import ShopifyAuth from "./pages/ShopifyAuth";
@@ -15,6 +16,7 @@ import UserDashboard from "./pages/UserDashboard";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import Checkout from "./pages/Checkout";
 import AdminDashboard from "./pages/AdminDashboard";
+import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import DarazProducts from "./pages/DarazProducts";
 import ShopifyProducts from "./pages/ShopifyProducts";
 import AdminLogin from "./pages/AdminLogin";
@@ -24,6 +26,8 @@ import DarazAnalytics from "./pages/DarazAnalytics";
 import DarazProfits from "./pages/DarazProfits";
 import DarazWishlists from "./pages/DarazWishlists";
 import DarazReturns from "./pages/DarazReturns";
+import ProductDetail from "./pages/ProductDetail";
+import ResellOrder from "./pages/ResellOrder";
 
 const queryClient = new QueryClient();
 
@@ -60,9 +64,11 @@ const App = () => (
               <Route
                 path="/checkout"
                 element={
-                  <ProtectedRoute>
-                    <Checkout />
-                  </ProtectedRoute>
+                  <ErrorBoundary>
+                    <ProtectedRoute>
+                      <Checkout />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
                 } 
               />
               <Route path="/admin-login" element={<AdminLogin />} />
@@ -74,8 +80,25 @@ const App = () => (
                   </ProtectedRoute>
                 } 
               />
+              <Route 
+                path="/super-admin" 
+                element={
+                  <ProtectedRoute requireSuperAdmin>
+                    <SuperAdminDashboard />
+                  </ProtectedRoute>
+                } 
+              />
               <Route path="/daraz-products" element={<DarazProducts />} />
               <Route path="/shopify-products" element={<ShopifyProducts />} />
+              <Route path="/product/:id" element={<ProductDetail />} />
+              <Route 
+                path="/resell/:id" 
+                element={
+                  <ProtectedRoute>
+                    <ResellOrder />
+                  </ProtectedRoute>
+                } 
+              />
               <Route path="/daraz-orders" element={<DarazOrders />} />
               <Route path="/daraz-analytics" element={<DarazAnalytics />} />
               <Route path="/daraz-profits" element={<DarazProfits />} />
