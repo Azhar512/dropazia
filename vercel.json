@@ -1,17 +1,12 @@
 {
-  "version": 2,
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/backend/src/server.js"
-    },
-    {
-      "source": "/health",
-      "destination": "/backend/src/server.js"
+      "source": "/(.*)",
+      "destination": "/api"
     }
   ],
   "functions": {
-    "backend/src/server.js": {
+    "api/index.js": {
       "maxDuration": 30
     }
   }
