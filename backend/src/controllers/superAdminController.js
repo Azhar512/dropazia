@@ -291,11 +291,152 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
+// Get user's purchase history (super admin only)
+const getUserPurchaseHistory = async (req, res) => {
+  try {
+    await connectDB();
+    const { getPool } = require('../config/database-supabase');
+    const pool = getPool();
+    
+    const { userId } = req.params;
+    
+    // Get user details
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
+    // Get user's orders with full details
+    const ordersResult = await pool.query(`
+      SELECT * FROM orders 
+      WHERE customer_id = $1 
+      ORDER BY created_at DESC
+    `, [userId]);
+    
+    // Get user's total spent
+    const totalSpentResult = await pool.query(`
+      SELECT COALESCE(SUM(total_amount), 0) as total 
+      FROM orders 
+      WHERE customer_id = $1 AND payment_status = 'paid'
+    `, [userId]);
+    
+    // Get user's order count by status
+    const ordersByStatusResult = await pool.query(`
+      SELECT status, COUNT(*) as count 
+      FROM orders 
+      WHERE customer_id = $1 
+      GROUP BY status
+    `, [userId]);
+    
+    // Get user's wishlist items
+    const wishlistResult = await pool.query(`
+      SELECT w.*, p.name as product_name, p.price, p.images 
+      FROM wishlists w 
+      LEFT JOIN products p ON w.product_id = p.id 
+      WHERE w.user_id = $1 
+      ORDER BY w.added_at DESC
+    `, [userId]);
+    
+    // Get user's return requests
+    const returnsResult = await pool.query(`
+      SELECT * FROM returns 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC
+    `, [userId]);
+    
+    const formattedUser = User.formatUser(user);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        user: formattedUser,
+        orders: ordersResult.rows,
+        totalOrders: ordersResult.rows.length,
+        totalSpent: parseFloat(totalSpentResult.rows[0].total || 0),
+        ordersByStatus: ordersByStatusResult.rows.reduce((acc, row) => {
+          acc[row.status] = parseInt(row.count);
+          return acc;
+        }, {}),
+        wishlist: wishlistResult.rows,
+        returns: returnsResult.rows
+      }
+    });
+  } catch (error) {
+    console.error('Get user purchase history error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch user purchase history',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Get all users with their order counts (super admin only)
+const getAllUsersWithStats = async (req, res) => {
+  try {
+    await connectDB();
+    const { getPool } = require('../config/database-supabase');
+    const pool = getPool();
+    
+    // Get all users with their order counts
+    const usersResult = await pool.query(`
+      SELECT 
+        u.id, 
+        u.name, 
+        u.email, 
+        u.phone, 
+        u.role, 
+        u.module,
+        u.status, 
+        u.is_active,
+        u.created_at,
+        u.last_login,
+        COUNT(DISTINCT o.id) as total_orders,
+        COALESCE(SUM(CASE WHEN o.payment_status = 'paid' THEN o.total_amount ELSE 0 END), 0) as total_spent
+      FROM users u
+      LEFT JOIN orders o ON u.id = o.customer_id
+      WHERE u.role IN ('buyer', 'seller')
+      GROUP BY u.id
+      ORDER BY total_spent DESC, u.created_at DESC
+    `);
+    
+    res.status(200).json({
+      success: true,
+      data: usersResult.rows.map(user => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        module: user.module,
+        status: user.status,
+        isActive: user.is_active,
+        createdAt: user.created_at,
+        lastLogin: user.last_login,
+        totalOrders: parseInt(user.total_orders || 0),
+        totalSpent: parseFloat(user.total_spent || 0)
+      }))
+    });
+  } catch (error) {
+    console.error('Get all users with stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch users with statistics',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   getAllAdmins,
   createAdmin,
   updateAdmin,
   deleteAdmin,
-  getDashboardStats
+  getDashboardStats,
+  getUserPurchaseHistory,
+  getAllUsersWithStats
 };
 

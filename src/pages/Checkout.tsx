@@ -19,6 +19,7 @@ import LoginForm from '@/components/LoginForm';
 import RegisterForm from '@/components/RegisterForm';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import PayFastService from '@/services/payfast';
 
 // Format currency helper - moved outside component to avoid re-render issues
 const formatCurrency = (amount: number | undefined | null): string => {
@@ -42,11 +43,9 @@ const Checkout = () => {
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
   
-  // Daraz required documents
-  const [customerAddressFile, setCustomerAddressFile] = useState<File | null>(null);
-  const [customerAddressPreview, setCustomerAddressPreview] = useState<string | null>(null);
-  const [darazCustomerFile, setDarazCustomerFile] = useState<File | null>(null);
-  const [darazCustomerPreview, setDarazCustomerPreview] = useState<string | null>(null);
+  // Daraz required document (simplified to one PDF only)
+  const [darazDocumentFile, setDarazDocumentFile] = useState<File | null>(null);
+  const [darazDocumentPreview, setDarazDocumentPreview] = useState<string | null>(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
   // Form data
@@ -61,7 +60,7 @@ const Checkout = () => {
     state: '',
     zipCode: '',
     country: 'Pakistan',
-    paymentMethod: 'jazzcash'
+    paymentMethod: 'easypaisa' // Changed default to easypaisa
   });
 
   // Update form data when user loads - real-time updates
@@ -236,35 +235,18 @@ const Checkout = () => {
     }
   };
 
-  // Handle Daraz customer address document upload
-  const handleCustomerAddressUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle Daraz document upload (simplified - only one PDF required)
+  const handleDarazDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.type !== 'application/pdf') {
-        toast.error('Please upload a PDF file for customer address details.');
+        toast.error('Please upload a PDF file for Daraz order.');
         return;
       }
-      setCustomerAddressFile(file);
+      setDarazDocumentFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
-        setCustomerAddressPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Handle Daraz customer document upload
-  const handleDarazCustomerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.type !== 'application/pdf') {
-        toast.error('Please upload a PDF file for Daraz customer document.');
-        return;
-      }
-      setDarazCustomerFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setDarazCustomerPreview(reader.result as string);
+        setDarazDocumentPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
@@ -275,8 +257,8 @@ const Checkout = () => {
     setPaymentStep('processing');
 
     try {
-      // Validate payment receipt
-      if (!receiptFile) {
+      // Validate payment receipt (only for EasyPaisa)
+      if (formData.paymentMethod === 'easypaisa' && !receiptFile) {
         toast.error('Please upload payment receipt before proceeding.');
         setPaymentStep('details');
         setIsProcessing(false);
@@ -285,25 +267,19 @@ const Checkout = () => {
 
       // Note: Profit input is only for Resell orders, not for regular "Buy for Self" checkout
 
-      // Validate Daraz required documents
+      // Validate Daraz required document (simplified - one PDF only)
       if (detectedModule === 'daraz') {
-        if (!customerAddressFile) {
-          toast.error('Please upload customer address details PDF document. This is required for Daraz orders.');
-          setPaymentStep('details');
-          setIsProcessing(false);
-          return;
-        }
-        if (!darazCustomerFile) {
-          toast.error('Please upload Daraz customer document PDF. This is required for Daraz orders.');
+        if (!darazDocumentFile) {
+          toast.error('Please upload the required PDF document for your Daraz order.');
           setPaymentStep('details');
           setIsProcessing(false);
           return;
         }
       }
 
-      // Convert receipt to base64 for payment receipt
+      // Convert receipt to base64 for payment receipt (only for EasyPaisa)
       let receiptBase64 = null;
-      if (receiptFile) {
+      if (formData.paymentMethod === 'easypaisa' && receiptFile) {
         receiptBase64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.readAsDataURL(receiptFile);
@@ -312,33 +288,18 @@ const Checkout = () => {
         });
       }
 
-      // Convert PDF files to base64 for Daraz orders
-      let customerAddressDocument = null;
-      let darazCustomerDocument = null;
+      // Convert PDF file to base64 for Daraz orders (simplified - one document only)
+      let darazOrderDocument = null;
       
-      if (detectedModule === 'daraz' && customerAddressFile) {
+      if (detectedModule === 'daraz' && darazDocumentFile) {
         const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
-          reader.readAsDataURL(customerAddressFile);
+          reader.readAsDataURL(darazDocumentFile);
           reader.onload = () => resolve(reader.result as string);
           reader.onerror = error => reject(error);
         });
-        customerAddressDocument = {
-          name: customerAddressFile.name,
-          url: base64,
-          type: 'pdf'
-        };
-      }
-      
-      if (detectedModule === 'daraz' && darazCustomerFile) {
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(darazCustomerFile);
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = error => reject(error);
-        });
-        darazCustomerDocument = {
-          name: darazCustomerFile.name,
+        darazOrderDocument = {
+          name: darazDocumentFile.name,
           url: base64,
           type: 'pdf'
         };
@@ -382,9 +343,8 @@ const Checkout = () => {
           url: receiptBase64,
           type: 'image'
         } : undefined,
-        customerAddressDocument: customerAddressDocument,
-        darazCustomerDocument: darazCustomerDocument,
-        notes: `Payment receipt uploaded.${detectedModule === 'daraz' ? ' Customer address and Daraz documents uploaded.' : ' Order placed via Buy for Self checkout.'}`
+        darazCustomerDocument: darazOrderDocument,
+        notes: `Payment receipt uploaded.${detectedModule === 'daraz' ? ' Daraz order document uploaded.' : ' Order placed via Buy for Self checkout.'}`
       };
 
       // Validate user is logged in
@@ -451,7 +411,35 @@ const Checkout = () => {
       // Clear cart ONLY after order is confirmed saved to database
       clearCart();
 
-      // Show success message - NO WhatsApp opening
+      // Handle PayFast payment redirect
+      if (formData.paymentMethod === 'payfast') {
+        try {
+          toast.loading('Redirecting to PayFast payment gateway...');
+          
+          // Redirect to PayFast
+          await PayFastService.initiatePayment({
+            orderId: backendOrder.order_number || backendOrder.id,
+            userId: user.id,
+            amount: total,
+            customerName: formData.customerName,
+            customerEmail: formData.customerEmail,
+            customerPhone: formData.customerPhone,
+            module: detectedModule,
+            itemDescription: `${cartItemsWithDetails.length} item(s) from ${detectedModule.toUpperCase()}`
+          });
+          
+          // Note: User will be redirected, so no need to set orderPlaced or stop processing
+          return;
+        } catch (payfastError) {
+          console.error('PayFast redirect error:', payfastError);
+          toast.error('Failed to redirect to PayFast. Please try again or use a different payment method.');
+          setPaymentStep('details');
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // Show success message for EasyPaisa - NO WhatsApp opening
       setOrderPlaced(true);
       setIsProcessing(false);
 
@@ -677,32 +665,32 @@ const Checkout = () => {
                 </div>
                 
                 <div className="space-y-4">
-                  {/* Customer Address Document */}
+                  {/* Daraz Order Document (Simplified - One PDF Only) */}
                   <div className="p-4 border border-orange-300 rounded-lg bg-orange-50">
-                    <Label htmlFor="customerAddress" className="text-sm font-semibold block mb-2 text-orange-800">
-                      Customer Address Details PDF * <span className="text-xs font-normal">(Required for Daraz)</span>
+                    <Label htmlFor="darazDocument" className="text-sm font-semibold block mb-2 text-orange-800">
+                      Daraz Order Document PDF * <span className="text-xs font-normal">(Required for Daraz)</span>
                     </Label>
                     <p className="text-xs text-orange-700 mb-3">
-                      Upload the PDF document containing your customer address details
+                      Upload the PDF document for your Daraz order (customer details, address, or order form)
                     </p>
                     <Input
-                      id="customerAddress"
+                      id="darazDocument"
                       type="file"
                       accept=".pdf,application/pdf"
-                      onChange={handleCustomerAddressUpload}
+                      onChange={handleDarazDocumentUpload}
                       className="cursor-pointer"
                       required={detectedModule === 'daraz'}
                     />
-                    {customerAddressFile && (
+                    {darazDocumentFile && (
                       <div className="mt-3 p-2 bg-white rounded border border-orange-200">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 bg-red-500 rounded flex items-center justify-center text-white text-xs font-bold">
                             PDF
                           </div>
                           <div className="flex-1">
-                            <p className="text-sm font-medium">{customerAddressFile.name}</p>
+                            <p className="text-sm font-medium">{darazDocumentFile.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {(customerAddressFile.size / 1024).toFixed(2)} KB
+                              {(darazDocumentFile.size / 1024).toFixed(2)} KB
                             </p>
                           </div>
                           <Button
@@ -710,52 +698,8 @@ const Checkout = () => {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              setCustomerAddressFile(null);
-                              setCustomerAddressPreview(null);
-                            }}
-                          >
-                            Remove
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Daraz Customer Document */}
-                  <div className="p-4 border border-orange-300 rounded-lg bg-orange-50">
-                    <Label htmlFor="darazCustomer" className="text-sm font-semibold block mb-2 text-orange-800">
-                      Daraz Customer Document PDF * <span className="text-xs font-normal">(Required for Daraz)</span>
-                    </Label>
-                    <p className="text-xs text-orange-700 mb-3">
-                      Upload the PDF document you received from Daraz (customer document/certificate)
-                    </p>
-                    <Input
-                      id="darazCustomer"
-                      type="file"
-                      accept=".pdf,application/pdf"
-                      onChange={handleDarazCustomerUpload}
-                      className="cursor-pointer"
-                      required={detectedModule === 'daraz'}
-                    />
-                    {darazCustomerFile && (
-                      <div className="mt-3 p-2 bg-white rounded border border-orange-200">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-red-500 rounded flex items-center justify-center text-white text-xs font-bold">
-                            PDF
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{darazCustomerFile.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {(darazCustomerFile.size / 1024).toFixed(2)} KB
-                            </p>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setDarazCustomerFile(null);
-                              setDarazCustomerPreview(null);
+                              setDarazDocumentFile(null);
+                              setDarazDocumentPreview(null);
                             }}
                           >
                             Remove
@@ -776,50 +720,114 @@ const Checkout = () => {
               </div>
               
               <div className="space-y-4">
-                {/* EasyPaisa Payment Info */}
-                <div className="p-4 border-2 border-green-500 rounded-lg bg-green-50">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-bold">
-                      EP
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-green-700">EasyPaisa Payment</h3>
-                      <p className="text-xs text-green-600">Upload payment receipt to complete your order</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 space-y-2 text-sm">
-                    <p><strong>Account:</strong> 03274996979</p>
-                    <p><strong>Name:</strong> Muhammad Aneeq Ahmad</p>
-                    <p><strong>Method:</strong> EasyPaisa</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2 mb-3">
-                    Please make payment to the account above and upload receipt to complete your order.
-                  </p>
-
-                  {/* Receipt Upload */}
-                  <div className="mt-3">
-                    <Label htmlFor="receipt" className="text-sm font-semibold block mb-2">
-                      Upload Payment Receipt *
-                    </Label>
-                    <Input
-                      id="receipt"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleReceiptUpload}
-                      className="cursor-pointer"
-                    />
-                    {receiptPreview && (
-                      <div className="mt-3">
-                        <p className="text-xs text-green-600 mb-2">Receipt preview:</p>
-                        <img
-                          src={receiptPreview}
-                          alt="Receipt preview"
-                          className="w-full h-40 object-contain border border-green-300 rounded"
-                        />
-                      </div>
-                    )}
-                  </div>
+                {/* Payment Method Selector */}
+                <div>
+                  <Label htmlFor="paymentMethod" className="text-sm font-semibold block mb-2">
+                    Select Payment Method *
+                  </Label>
+                  <Select 
+                    value={formData.paymentMethod} 
+                    onValueChange={(value) => handleInputChange('paymentMethod', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose payment method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="easypaisa">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                            EP
+                          </div>
+                          <span>EasyPaisa (Manual Transfer)</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="payfast">
+                        <div className="flex items-center gap-2">
+                          <CreditCard className="w-5 h-5 text-blue-600" />
+                          <span>PayFast (Card/Online)</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+
+                {/* EasyPaisa Payment Info - Show when selected */}
+                {formData.paymentMethod === 'easypaisa' && (
+                  <div className="p-4 border-2 border-green-500 rounded-lg bg-green-50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-bold">
+                        EP
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-green-700">EasyPaisa Payment</h3>
+                        <p className="text-xs text-green-600">Upload payment receipt to complete your order</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 space-y-2 text-sm">
+                      <p><strong>Account:</strong> 03274996979</p>
+                      <p><strong>Name:</strong> Muhammad Aneeq Ahmad</p>
+                      <p><strong>Method:</strong> EasyPaisa</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2 mb-3">
+                      Please make payment to the account above and upload receipt to complete your order.
+                    </p>
+
+                    {/* Receipt Upload */}
+                    <div className="mt-3">
+                      <Label htmlFor="receipt" className="text-sm font-semibold block mb-2">
+                        Upload Payment Receipt *
+                      </Label>
+                      <Input
+                        id="receipt"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleReceiptUpload}
+                        className="cursor-pointer"
+                        required
+                      />
+                      {receiptPreview && (
+                        <div className="mt-3">
+                          <p className="text-xs text-green-600 mb-2">Receipt preview:</p>
+                          <img
+                            src={receiptPreview}
+                            alt="Receipt preview"
+                            className="w-full h-40 object-contain border border-green-300 rounded"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* PayFast Payment Info - Show when selected */}
+                {formData.paymentMethod === 'payfast' && (
+                  <div className="p-4 border-2 border-blue-500 rounded-lg bg-blue-50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CreditCard className="w-10 h-10 text-blue-600" />
+                      <div>
+                        <h3 className="font-semibold text-blue-700">PayFast Online Payment</h3>
+                        <p className="text-xs text-blue-600">Secure payment gateway - Card, Bank Transfer, and more</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      <p className="text-sm"><strong>Accepted Methods:</strong></p>
+                      <ul className="text-xs text-muted-foreground list-disc list-inside space-y-1">
+                        <li>Credit/Debit Cards (Visa, Mastercard)</li>
+                        <li>Instant EFT / Bank Transfer</li>
+                        <li>Capitec Pay, Zapper</li>
+                        <li>Secure 3D Verification</li>
+                      </ul>
+                    </div>
+                    <div className="mt-3 p-3 bg-white rounded border border-blue-200">
+                      <p className="text-xs text-blue-800">
+                        <strong>✓ Safe & Secure:</strong> After clicking "Place Order", you'll be redirected to PayFast's secure payment page.
+                      </p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      No receipt upload needed - payment is verified automatically!
+                    </p>
+                  </div>
+                )}
               </div>
             </Card>
           </div>
@@ -933,7 +941,7 @@ const Checkout = () => {
                 disabled={
                   isProcessing || 
                   !receiptFile || 
-                  (detectedModule === 'daraz' && (!customerAddressFile || !darazCustomerFile))
+                  (detectedModule === 'daraz' && !darazDocumentFile)
                 }
                 className="w-full mt-6"
                 size="lg"
@@ -948,8 +956,8 @@ const Checkout = () => {
                     <CreditCard className="w-4 h-4 mr-2" />
                     {!receiptFile 
                       ? 'Upload Receipt First' 
-                      : detectedModule === 'daraz' && (!customerAddressFile || !darazCustomerFile)
-                      ? 'Upload Required PDF Documents First'
+                      : detectedModule === 'daraz' && !darazDocumentFile
+                      ? 'Upload Required PDF Document First'
                       : 'Complete Order'}
                   </>
                 )}

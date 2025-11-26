@@ -8,6 +8,7 @@ A modern B2B e-commerce management platform for sellers managing products across
 - **User Management**: Role-based access (buyer, seller, admin) with approval system
 - **Product Management**: Complete CRUD operations with images and documents
 - **Shopping Cart**: Persistent cart with database storage
+- **Payment Gateway**: Integrated PayFast for secure online payments (Cards, EFT, etc.)
 - **Order Processing**: Full order lifecycle management
 - **Analytics & Profits**: Track sales and profits per module
 - **Returns Management**: Handle product returns and refunds
@@ -160,6 +161,7 @@ shopdaraz-hub-main/
 ## 📚 Documentation
 
 - **[ENV_SETUP.md](./ENV_SETUP.md)** - Environment variables setup
+- **[PAYFAST_SETUP_GUIDE.md](./PAYFAST_SETUP_GUIDE.md)** - PayFast payment gateway integration guide
 - **[PROJECT_CLEANUP_SUMMARY.md](./PROJECT_CLEANUP_SUMMARY.md)** - Recent migration and cleanup details
 - **[SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md)** - Detailed setup guide
 - **[LOCAL_SETUP.md](./LOCAL_SETUP.md)** - Local development setup

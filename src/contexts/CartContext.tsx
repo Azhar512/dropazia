@@ -94,14 +94,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      console.log('🛒 Adding to cart:', product.id, product.name);
       await ApiService.addToCart(product.id, quantity);
-      console.log('✅ Added to cart, refreshing...');
       await loadCart(); // Refresh cart from server
-      console.log('✅ Cart refreshed:', cartItems);
     } catch (error) {
-      console.error('❌ Error adding to cart:', error);
-      alert('Failed to add item to cart: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      console.error('Error adding to cart:', error instanceof Error ? error.message : 'Unknown error');
+      alert('Failed to add item to cart. Please try again.');
     }
   };
 

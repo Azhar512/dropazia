@@ -14,13 +14,14 @@
     {
       "src": "/health",
       "dest": "backend/src/server.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "backend/src/server.js"
     }
   ],
   "env": {
     "NODE_ENV": "production"
+  },
+  "functions": {
+    "backend/src/server.js": {
+      "maxDuration": 10
+    }
   }
 }

@@ -15,7 +15,10 @@ import {
   Star,
   Check,
   X,
-  TrendingUp
+  TrendingUp,
+  Download,
+  FileText,
+  Image as ImageIcon
 } from 'lucide-react';
 import { useProducts } from '@/contexts/ProductContext';
 import { useCart } from '@/contexts/CartContext';
@@ -111,6 +114,186 @@ const ProductDetail = () => {
     } else {
       navigator.clipboard.writeText(window.location.href);
       toast.success('Link copied to clipboard');
+    }
+  };
+
+  // Download product image as PNG
+  const handleDownloadImage = async () => {
+    if (!product) return;
+    
+    try {
+      const imageUrl = primaryImage;
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${product.name.replace(/[^a-zA-Z0-9]/g, '_')}_image.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success('Image downloaded successfully');
+    } catch (error) {
+      toast.error('Failed to download image');
+    }
+  };
+
+  // Download product description as PDF
+  const handleDownloadPDF = () => {
+    if (!product) return;
+
+    try {
+      // Create HTML content for PDF
+      const content = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${product.name} - Product Details</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px;
+      max-width: 800px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    .header {
+      border-bottom: 3px solid #f97316;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+    h1 {
+      color: #f97316;
+      margin: 0 0 10px 0;
+    }
+    .badge {
+      display: inline-block;
+      padding: 5px 12px;
+      background: #f3f4f6;
+      border-radius: 4px;
+      font-size: 14px;
+      margin-right: 10px;
+      margin-top: 10px;
+    }
+    .price {
+      font-size: 32px;
+      font-weight: bold;
+      color: #f97316;
+      margin: 20px 0;
+    }
+    .section {
+      margin: 30px 0;
+    }
+    .section-title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #374151;
+    }
+    .spec-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    .spec-table td {
+      padding: 10px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .spec-table td:first-child {
+      font-weight: bold;
+      width: 200px;
+    }
+    .footer {
+      margin-top: 50px;
+      padding-top: 20px;
+      border-top: 1px solid #e5e7eb;
+      text-align: center;
+      color: #6b7280;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${product.name}</h1>
+    <div>
+      <span class="badge">${product.category}</span>
+      <span class="badge">${product.module === 'daraz' ? 'Daraz' : 'Shopify'}</span>
+      <span class="badge">${product.stock > 0 ? 'In Stock' : 'Out of Stock'}</span>
+    </div>
+  </div>
+
+  <div class="price">Rs ${product.price.toLocaleString()}</div>
+
+  <div class="section">
+    <div class="section-title">Description</div>
+    <p>${product.description || 'No description available'}</p>
+  </div>
+
+  ${product.specifications && product.specifications.length > 0 ? `
+  <div class="section">
+    <div class="section-title">Specifications</div>
+    <table class="spec-table">
+      ${product.specifications.map(spec => `
+        <tr>
+          <td>${spec.name}</td>
+          <td>${spec.value}</td>
+        </tr>
+      `).join('')}
+    </table>
+  </div>
+  ` : ''}
+
+  <div class="section">
+    <div class="section-title">Product Information</div>
+    <table class="spec-table">
+      <tr>
+        <td>SKU</td>
+        <td>${product.sku || 'N/A'}</td>
+      </tr>
+      <tr>
+        <td>Stock</td>
+        <td>${product.stock} units</td>
+      </tr>
+      <tr>
+        <td>Weight</td>
+        <td>${product.weight ? `${product.weight} kg` : 'N/A'}</td>
+      </tr>
+      <tr>
+        <td>Category</td>
+        <td>${product.category}</td>
+      </tr>
+      <tr>
+        <td>Module</td>
+        <td>${product.module === 'daraz' ? 'Daraz' : 'Shopify'}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="footer">
+    <p>Generated from Dropazia Platform</p>
+    <p>Product ID: ${product.id}</p>
+  </div>
+</body>
+</html>
+      `;
+
+      // Create a blob with HTML content
+      const blob = new Blob([content], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${product.name.replace(/[^a-zA-Z0-9]/g, '_')}_details.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Product details downloaded successfully');
+    } catch (error) {
+      toast.error('Failed to download PDF');
     }
   };
 
@@ -308,6 +491,32 @@ const ProductDetail = () => {
                       {product.stock} available
                     </span>
                   )}
+                </div>
+              </div>
+
+              {/* Download Options */}
+              <div className="border-2 border-blue-200 rounded-lg p-4 bg-blue-50">
+                <div className="flex items-center gap-2 mb-3">
+                  <Download className="w-5 h-5 text-blue-600" />
+                  <span className="font-semibold text-blue-700">Download Options</span>
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={handleDownloadImage}
+                  >
+                    <ImageIcon className="w-4 h-4 mr-2" />
+                    Download Image
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={handleDownloadPDF}
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Download Details
+                  </Button>
                 </div>
               </div>
 

@@ -26,8 +26,11 @@ import DarazAnalytics from "./pages/DarazAnalytics";
 import DarazProfits from "./pages/DarazProfits";
 import DarazWishlists from "./pages/DarazWishlists";
 import DarazReturns from "./pages/DarazReturns";
+import ShopifyReturns from "./pages/ShopifyReturns";
 import ProductDetail from "./pages/ProductDetail";
 import ResellOrder from "./pages/ResellOrder";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentCancelled from "./pages/PaymentCancelled";
 
 const queryClient = new QueryClient();
 
@@ -71,6 +74,8 @@ const App = () => (
                   </ErrorBoundary>
                 } 
               />
+              <Route path="/payment-success" element={<PaymentSuccess />} />
+              <Route path="/payment-cancelled" element={<PaymentCancelled />} />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route 
                 path="/admin" 
@@ -104,11 +109,12 @@ const App = () => (
               <Route path="/daraz-profits" element={<DarazProfits />} />
               <Route path="/daraz-wishlists" element={<DarazWishlists />} />
               <Route path="/daraz-returns" element={<DarazReturns />} />
+              {/* Shopify routes - reusing same components with module prop handled internally */}
               <Route path="/shopify-orders" element={<DarazOrders />} />
               <Route path="/shopify-analytics" element={<DarazAnalytics />} />
               <Route path="/shopify-profits" element={<DarazProfits />} />
               <Route path="/shopify-wishlists" element={<DarazWishlists />} />
-              <Route path="/shopify-returns" element={<DarazReturns />} />
+              <Route path="/shopify-returns" element={<ShopifyReturns />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -3,23 +3,20 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 class ApiService {
   static async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
-    console.log('🌐 API Request:', url, options);
     const token = localStorage.getItem('authToken');
     
-    // NUCLEAR OPTION: Force no cache on all requests
-    const cacheBuster = endpoint.includes('?') ? `&_nc=${Date.now()}` : `?_nc=${Date.now()}`;
+    // Add cache control for GET requests only
+    const cacheBuster = options.method === 'GET' || !options.method 
+      ? (endpoint.includes('?') ? `&_t=${Date.now()}` : `?_t=${Date.now()}`) 
+      : '';
     const urlWithCacheBuster = `${url}${cacheBuster}`;
     
     const config = {
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
         ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },
-      cache: 'no-store', // Force browser to not cache
       ...options,
     };
 
@@ -28,7 +25,6 @@ class ApiService {
       const data = await response.json();
       
       if (!response.ok) {
-        console.error(`❌ API Error ${response.status}:`, data);
         const error = new Error(data.message || data.error || 'API request failed');
         error.status = response.status;
         error.response = data;
@@ -38,10 +34,8 @@ class ApiService {
       return data;
     } catch (error) {
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        console.error('❌ Network Error: Could not reach API server');
         throw new Error('Network error: Could not connect to server. Please check your connection.');
       }
-      console.error('❌ API Error:', error);
       throw error;
     }
   }
@@ -114,12 +108,10 @@ class ApiService {
 
         // User API (Admin only)
         static async getUsers(params = {}) {
-          // Remove cache-busting param if present (internal use only)
           const cleanParams = { ...params };
           delete cleanParams._t;
           const queryString = new URLSearchParams(cleanParams).toString();
           const url = `/api/users${queryString ? `?${queryString}` : ''}`;
-          console.log('🌐 API Request: GET', url);
           return this.request(url);
         }
 
@@ -270,6 +262,16 @@ class ApiService {
     return this.request(`/api/super-admin/admins/${adminId}`, {
       method: 'DELETE',
     });
+  }
+
+  // Get all users with stats (super admin only)
+  static async getAllUsersWithStats() {
+    return this.request('/api/super-admin/users');
+  }
+
+  // Get user purchase history (super admin only)
+  static async getUserPurchaseHistory(userId) {
+    return this.request(`/api/super-admin/users/${userId}/history`);
   }
 }
 

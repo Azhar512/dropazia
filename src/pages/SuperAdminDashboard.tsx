@@ -29,6 +29,8 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import UserHistoryViewer from '@/components/UserHistoryViewer';
 
 interface Admin {
   id: string;
@@ -365,13 +367,27 @@ const SuperAdminDashboard = () => {
           </Card>
         )}
 
-        {/* Admin Management */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-semibold flex items-center gap-2">
-              <Shield className="w-6 h-6" />
+        {/* Tabs for Admin Management and User History */}
+        <Tabs defaultValue="admins" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="admins">
+              <Shield className="w-4 h-4 mr-2" />
               Admin Management
-            </h2>
+            </TabsTrigger>
+            <TabsTrigger value="users">
+              <Users className="w-4 h-4 mr-2" />
+              User History
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Admin Management Tab */}
+          <TabsContent value="admins">
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-semibold flex items-center gap-2">
+                  <Shield className="w-6 h-6" />
+                  Admin Management
+                </h2>
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button onClick={resetForm}>
@@ -542,10 +558,10 @@ const SuperAdminDashboard = () => {
               </TableBody>
             </Table>
           </div>
-        </Card>
+            </Card>
 
-        {/* Edit Admin Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            {/* Edit Admin Dialog */}
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit Admin</DialogTitle>
@@ -622,7 +638,14 @@ const SuperAdminDashboard = () => {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+            </Dialog>
+          </TabsContent>
+
+          {/* User History Tab */}
+          <TabsContent value="users">
+            <UserHistoryViewer />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

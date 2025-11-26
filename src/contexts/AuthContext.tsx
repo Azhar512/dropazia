@@ -83,8 +83,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/login`;
-      console.log('🌐 Login API URL:', apiUrl);
-      console.log('📧 Login attempt:', { email });
       
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -93,18 +91,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         },
         body: JSON.stringify({ email, password }),
       });
-
-      console.log('📥 Response status:', response.status);
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        console.error('❌ Login failed - Status:', response.status);
-        console.error('❌ Error data:', errorData);
         return false;
       }
 
       const data = await response.json();
-      console.log('📥 Login response:', data);
 
       if (data.success) {
         const { user, token } = data.data;
@@ -120,21 +112,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(userData);
         localStorage.setItem('authToken', token);
         localStorage.setItem('userRole', user.role);
-        console.log('✅ Login successful!');
-        console.log('✅ User role stored:', user.role);
-        console.log('✅ User data:', userData);
         return true;
-      } else {
-        console.error('❌ Login failed:', data.message);
-        return false;
       }
+      
+      return false;
     } catch (error) {
-      console.error('❌ Login error:', error);
-      console.error('❌ Error details:', {
-        name: error instanceof Error ? error.name : 'Unknown',
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
+      console.error('Login error:', error instanceof Error ? error.message : 'Unknown error');
       return false;
     }
   };
@@ -143,8 +126,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      console.log('🔄 Registering user:', { email: data.email, name: data.name });
       
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/register`, {
         method: 'POST',
@@ -155,25 +136,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       const result = await response.json();
-      console.log('📥 Registration response:', result);
 
       if (!response.ok) {
         const errorMsg = result.message || result.error || `Registration failed (${response.status})`;
-        console.error('❌ Registration failed:', errorMsg);
         throw new Error(errorMsg);
       }
 
       if (!result.success) {
         const errorMsg = result.message || 'Registration failed';
-        console.error('❌ Registration not successful:', errorMsg);
         throw new Error(errorMsg);
       }
 
-      console.log('✅ Registration successful');
-      // Registration successful - user needs admin approval
-      // Don't log them in automatically
+      // Registration successful
     } catch (err) {
-      console.error('❌ Registration error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Registration failed. Please try again.';
       setError(errorMessage);
       throw err;

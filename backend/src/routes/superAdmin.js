@@ -6,7 +6,9 @@ const {
   createAdmin,
   updateAdmin,
   deleteAdmin,
-  getDashboardStats
+  getDashboardStats,
+  getUserPurchaseHistory,
+  getAllUsersWithStats
 } = require('../controllers/superAdminController');
 
 // All routes require super admin authentication
@@ -21,6 +23,10 @@ router.get('/admins', getAllAdmins);
 router.post('/admins', createAdmin);
 router.put('/admins/:id', updateAdmin);
 router.delete('/admins/:id', deleteAdmin);
+
+// User management and analytics
+router.get('/users', getAllUsersWithStats);
+router.get('/users/:userId/history', getUserPurchaseHistory);
 
 module.exports = router;
 
